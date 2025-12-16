@@ -1,7 +1,57 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, Info, Trash2, ChevronDown } from 'lucide-react';
+import { Info, Trash2, ChevronDown } from 'lucide-react';
 
-// Reusable DeleteAccountModal Component (exact UI you provided)
+// API CONFIG
+const API_BASE = "http://192.168.0.245:4000";
+
+const getHeaders = (extra = {}) => {
+  const token = localStorage.getItem("token");
+  return {
+    ...extra,
+    ...(token && { Authorization: `Bearer ${token}` }),
+  };
+};
+
+// Updated: getUser now accepts raw userId string
+const getUser = async (userId) => {
+  const res = await fetch(`${API_BASE}/users/${userId}`, {
+    headers: getHeaders(),
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.message || "Failed to fetch user");
+  }
+  return res.json();
+};
+
+const updateUser = async (userId, payload, isMultipart = false) => {
+  const res = await fetch(`${API_BASE}/users/${userId}`, {
+    method: "PATCH",
+    headers: isMultipart ? getHeaders() : getHeaders({ "Content-Type": "application/json" }),
+    body: isMultipart ? payload : JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.message || "Failed to update user");
+  }
+  return res.json();
+};
+
+const deleteUser = async (userId, data = null) => {
+  const res = await fetch(`${API_BASE}/users/${userId}`, {
+    method: "DELETE",
+    headers: getHeaders({ "Content-Type": "application/json" }),
+    ...(data && { body: JSON.stringify(data) }),
+  });
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    throw new Error(error.message || "Failed to delete account");
+  }
+  return res.json();
+};
+
+// Reusable DeleteAccountModal Component (unchanged)
 function DeleteAccountModal({ isOpen, onClose, onDelete }) {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const inputRefs = useRef([]);
@@ -81,7 +131,6 @@ function DeleteAccountModal({ isOpen, onClose, onDelete }) {
           <div className="text-sm text-gray-600 mb-4">
             We will also delete any information that Hiverift has stored with
             third-party vendors.{" "}
-           
           </div>
 
           <label className="font-medium">Reason for deleting your account *</label>
@@ -154,29 +203,9 @@ const ProfilePage = () => {
   });
 
   const [imagePreview, setImagePreview] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-
-  useEffect(() => {
-    loadSettings();
-  }, []);
-
-  const loadSettings = async () => {
-    try {
-      const result = await window.storage.get('scheduling-settings');
-      if (result) {
-        const savedData = JSON.parse(result.value);
-        setFormData(savedData);
-        if (savedData.profileImage) {
-          setImagePreview(savedData.profileImage);
-        }
-      }
-    } catch (error) {
-      console.log('No saved settings found');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -186,6 +215,53 @@ const ProfilePage = () => {
     }));
   };
 
+  // Helper to get current user from localStorage
+  const getCurrentUser = () => {
+    const userJson = localStorage.getItem("user");
+    if (!userJson) return null;
+    try {
+      return JSON.parse(userJson);
+    } catch (e) {
+      console.error("Invalid user data in localStorage");
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    const user = getCurrentUser();
+    if (user && user.id) {
+      loadProfile(user.id);
+    } else {
+      setIsLoading(false);
+      alert("Please log in to view your profile.");
+    }
+  }, []);
+
+  const loadProfile = async (userId) => {
+    try {
+      const user = await getUser(userId);
+
+      setFormData({
+        name: user.name || "",
+        welcomeMessage: user.welcomeMessage || "",
+        language: user.language || "English",
+        dateFormat: user.dateFormat || "DD/MM/YYYY",
+        timeFormat: user.timeFormat || "12h (am/pm)",
+        country: user.country || "India",
+        timeZone: user.timeZone || "Eastern Time - US & Canada",
+        profileImage: user.profileImage || null,
+      });
+
+      setImagePreview(user.profileImage || null);
+      setSelectedFile(null);
+    } catch (err) {
+      console.error("Error loading profile:", err);
+      alert("Failed to load profile. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -193,62 +269,101 @@ const ProfilePage = () => {
         alert('File size must be less than 5MB');
         return;
       }
-      
+
+      setSelectedFile(file);
+
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result);
-        setFormData(prev => ({
-          ...prev,
-          profileImage: reader.result
-        }));
       };
       reader.readAsDataURL(file);
     }
   };
 
   const handleSave = async () => {
+    const user = getCurrentUser();
+    console.log('user',user)
+    if (!user || !user.id) {
+      alert("Session expired. Please log in again.");
+      return;
+    }
+
     try {
-      await window.storage.set('scheduling-settings', JSON.stringify(formData));
-      alert('Settings saved successfully!');
-    } catch (error) {
-      console.error('Error saving settings:', error);
-      alert('Failed to save settings. Please try again.');
+      let updatedUser;
+
+      if (selectedFile) {
+        const payload = new FormData();
+        payload.append("name", formData.name.trim());
+        payload.append("welcomeMessage", formData.welcomeMessage.trim());
+        payload.append("language", formData.language);
+        payload.append("dateFormat", formData.dateFormat);
+        payload.append("timeFormat", formData.timeFormat);
+        payload.append("country", formData.country);
+        payload.append("timeZone", formData.timeZone);
+        payload.append("profileImage", selectedFile);
+
+        updatedUser = await updateUser(user.id, payload, true);
+      } else {
+        const payload = {
+          name: formData.name.trim(),
+          welcomeMessage: formData.welcomeMessage.trim(),
+          language: formData.language,
+          dateFormat: formData.dateFormat,
+          timeFormat: formData.timeFormat,
+          country: formData.country,
+          timeZone: formData.timeZone,
+        };
+
+        updatedUser = await updateUser(user.id, payload, false);
+      }
+
+      // Update localStorage user object if needed (optional)
+      localStorage.setItem("user", JSON.stringify({ ...user, ...updatedUser }));
+
+      alert("Profile saved successfully!");
+      await loadProfile(user.id); // Reload fresh data
+
+    } catch (err) {
+      console.error("Save error:", err);
+      alert(err.message || "Failed to save profile. Please try again.");
     }
   };
 
   const handleCancel = () => {
-    loadSettings();
+    const user = getCurrentUser();
+    if (user && user.id) {
+      loadProfile(user.id);
+    }
   };
 
-  const handleDeleteConfirm = async (data) => {
-    // Simulate OTP success for demo (in real app, validate OTP on backend)
-    console.log("Delete request with:", data);
+  const handleDeleteConfirm = async (deleteData) => {
+    const user = getCurrentUser();
+    if (!user || !user.id) {
+      alert("Session expired.");
+      return;
+    }
 
     try {
-      await window.storage.delete('scheduling-settings');
-      setFormData({
-        name: '',
-        welcomeMessage: '',
-        language: 'English',
-        dateFormat: 'DD/MM/YYYY',
-        timeFormat: '12h (am/pm)',
-        country: 'India',
-        timeZone: 'Eastern Time - US & Canada',
-        profileImage: null
-      });
-      setImagePreview(null);
+      await deleteUser(user.id, deleteData);
+
+      localStorage.removeItem("user");
+      localStorage.removeItem("token");
+
       setShowDeleteModal(false);
-      alert('Account deleted successfully!');
-    } catch (error) {
-      console.error('Error deleting account:', error);
-      alert('Failed to delete account. Please try again.');
+      alert("Your account has been deleted successfully.");
+      // Optional: redirect to login
+      // window.location.href = "/login";
+
+    } catch (err) {
+      console.error("Delete account error:", err);
+      alert(err.message || "Failed to delete account. Please check the verification code.");
     }
   };
 
   const getCurrentTime = () => {
     const now = new Date();
-    return now.toLocaleTimeString('en-US', { 
-      hour: 'numeric', 
+    return now.toLocaleTimeString('en-US', {
+      hour: 'numeric',
       minute: '2-digit',
       hour12: formData.timeFormat === '12h (am/pm)'
     });
@@ -270,7 +385,7 @@ const ProfilePage = () => {
             <h1 className="text-3xl font-bold text-gray-900">Profile</h1>
           </div>
         </div>
-        
+
         <div className="max-w-2xl mx-auto bg-gray-50 p-8 ml-20">
           {/* Profile Image Section */}
           <div className="flex items-start gap-6 mb-8">
@@ -280,7 +395,7 @@ const ProfilePage = () => {
                   <img src={imagePreview} alt="Profile" className="w-full h-full object-cover" />
                 ) : (
                   <svg className="w-16 h-16 text-neutral-400" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
                   </svg>
                 )}
               </div>
@@ -357,31 +472,26 @@ const ProfilePage = () => {
                 Date Format
                 <Info className="w-4 h-4 text-neutral-400" />
               </label>
-              <select
+              <input
+                type="text"
                 name="dateFormat"
                 value={formData.dateFormat}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none bg-white"
-              >
-                <option>DD/MM/YYYY</option>
-                <option>MM/DD/YYYY</option>
-                <option>YYYY-MM-DD</option>
-              </select>
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
             <div>
               <label className="flex items-center gap-1 text-sm font-medium text-neutral-700 mb-2">
                 Time Format
                 <Info className="w-4 h-4 text-neutral-400" />
               </label>
-              <select
+              <input
+                type="text"
                 name="timeFormat"
                 value={formData.timeFormat}
                 onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none bg-white"
-              >
-                <option>12h (am/pm)</option>
-                <option>24h</option>
-              </select>
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
           </div>
 
@@ -435,7 +545,6 @@ const ProfilePage = () => {
                 className="px-6 py-2 bg-blue-600 text-white rounded-4xl hover:bg-blue-700 transition-colors font-medium"
               >
                 Save Changes
-
               </button>
               <button
                 onClick={handleCancel}
@@ -454,7 +563,6 @@ const ProfilePage = () => {
         </div>
       </div>
 
-      {/* New Professional Delete Modal */}
       <DeleteAccountModal
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}

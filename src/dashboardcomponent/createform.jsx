@@ -1,21 +1,9 @@
-// components/CreateEventPanel.jsx
-import React, { useState, useRef, useEffect, use } from "react";
+
+import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
-import {
-  X,
-  Clock,
-  Calendar,
-  Users,
-  MapPin,
-  MessageSquare,
-  Video,
-  Phone,
-  Building,
-  Globe,
-  Check,
-  ChevronDown,
-} from "lucide-react";
+import { X, Clock, Calendar, Users, MapPin, MessageSquare, Video, Phone, Building, Globe, Check, ChevronDown } from "lucide-react";
 import CalendarView from "./abc.jsx";
+import API_URL from "../config/config.js";
 
 // ----- Main Component -----
 export default function CreateForm({ onClose, onCreate, eventToEdit }) {
@@ -23,18 +11,16 @@ export default function CreateForm({ onClose, onCreate, eventToEdit }) {
 
   // Form state
   const [title, setTitle] = useState(eventToEdit?.title || "");
-  const [duration, setDuration] = useState(
-    eventToEdit?.duration?.toString() || "30"
-  );
-  const [maxBookings, setMaxBookings] = useState(
-    eventToEdit?.maxBookingsPerDay?.toString() || "5"
-  );
-  const [locationType, setLocationType] = useState(
-    eventToEdit?.location || "google_meet"
-  );
+  const [duration, setDuration] = useState(eventToEdit?.duration?.toString() || "30");
+  const [maxBookings, setMaxBookings] = useState(eventToEdit?.maxBookingsPerDay?.toString() || "5");
+  const [locationType, setLocationType] = useState(eventToEdit?.location || "Google Meet");
   const [askPhone, setAskPhone] = useState(true);
   const [askPurpose, setAskPurpose] = useState(true);
   const [eventType, setEventType] = useState(eventToEdit?.type || "one-on-one");
+
+  // Availability states - adapted to new backend schema
+  const [singleSlots, setSingleSlots] = useState(eventToEdit?.singleDayAvailability || []);
+  const [recurringSlots, setRecurringSlots] = useState(eventToEdit?.weeklyAvailability || []);
 
   // UI state
   const [isMounted, setIsMounted] = useState(false);
@@ -44,6 +30,7 @@ export default function CreateForm({ onClose, onCreate, eventToEdit }) {
   const [openLocationModal, setOpenLocationModal] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+
   const modalRef = useRef(null);
 
   // Location config state
@@ -53,9 +40,9 @@ export default function CreateForm({ onClose, onCreate, eventToEdit }) {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [physicalAddress, setPhysicalAddress] = useState("");
   const [AUTH_TOKEN, setToken] = useState();
- 
+
   // ----- CONFIG -----
-  const API_BASE_URL = "http://192.168.0.245:5000";
+  const API_BASE_URL = API_URL.BASE_URL;
 
   // ----- AXIOS CLIENT -----
   const axiosClient = axios.create({
@@ -67,13 +54,11 @@ export default function CreateForm({ onClose, onCreate, eventToEdit }) {
     },
   });
 
-  // Request interceptor (ensures token is sent)
   axiosClient.interceptors.request.use((config) => {
     config.headers.Authorization = `Bearer ${AUTH_TOKEN}`;
     return config;
   });
 
-  // Response interceptor with retry on 5xx
   axiosClient.interceptors.response.use(
     (res) => res,
     async (error) => {
@@ -88,20 +73,23 @@ export default function CreateForm({ onClose, onCreate, eventToEdit }) {
   );
 
   useEffect(() => {
+    const token = localStorage.getItem("token");
+    console.log("Auth Token in CreateForm:", token);
+    setToken(token);
+  }, []);
 
-     const token = localStorage.getItem("token");
-  console.log("Auth Token in CreateForm:", token);
-  setToken(token);
-
-  });
   // Sync with eventToEdit when editing
   useEffect(() => {
     if (eventToEdit) {
       setTitle(eventToEdit.title || "");
       setDuration((eventToEdit.duration || 30).toString());
       setMaxBookings((eventToEdit.maxBookingsPerDay || 5).toString());
-      setLocationType(eventToEdit.location || "google_meet");
+      setLocationType(eventToEdit.location || "Google Meet");
       setEventType(eventToEdit.type || "one-on-one");
+
+      // Load new availability fields
+      setSingleSlots(eventToEdit.singleDayAvailability || []);
+      setRecurringSlots(eventToEdit.weeklyAvailability || []);
 
       // Questions
       const questions = eventToEdit.questions || [];
@@ -109,19 +97,15 @@ export default function CreateForm({ onClose, onCreate, eventToEdit }) {
       setAskPurpose(questions.some((q) => q.question === "Purpose of Meeting"));
 
       // Location details
-      if (eventToEdit.location === "phone" && eventToEdit.locationValue) {
-        const match = eventToEdit.locationValue.match(
-          /Phone Call • ([+]\d+) (.+)/
-        );
+      if (eventToEdit.locationValue?.includes("Phone Call")) {
+        const match = eventToEdit.locationValue.match(/Phone Call • ([+]\d+) (.+)/);
         if (match) {
           setCountryCode(match[1]);
           setPhoneNumber(match[2]);
         }
       }
-      if (eventToEdit.location === "physical" && eventToEdit.locationValue) {
-        setPhysicalAddress(
-          eventToEdit.locationValue.replace("In Person • ", "")
-        );
+      if (eventToEdit.locationValue?.includes("In Person")) {
+        setPhysicalAddress(eventToEdit.locationValue.replace("In Person • ", ""));
       }
     }
   }, [eventToEdit]);
@@ -132,7 +116,6 @@ export default function CreateForm({ onClose, onCreate, eventToEdit }) {
     return () => clearTimeout(t);
   }, []);
 
-  // Close location modal on outside click
   useEffect(() => {
     const onDocClick = (e) => {
       if (modalRef.current && !modalRef.current.contains(e.target)) {
@@ -144,15 +127,15 @@ export default function CreateForm({ onClose, onCreate, eventToEdit }) {
   }, []);
 
   const locations = [
-    { value: "google_meet", label: "Google Meet", icon: Globe },
-    { value: "zoom", label: "Zoom", icon: Video },
+    { value: "Google Meet", label: "Google Meet", icon: Globe },
+    { value: "Zoom", label: "Zoom", icon: Video },
     { value: "phone", label: "Phone Call", icon: Phone },
     { value: "physical", label: "In Person", icon: Building },
   ];
 
   const isConfigured = {
-    google_meet: googleMeetConnected,
-    zoom: zoomConnected,
+    "Google Meet": googleMeetConnected,
+    Zoom: zoomConnected,
     phone: !!phoneNumber.trim(),
     physical: !!physicalAddress.trim(),
   };
@@ -184,108 +167,107 @@ export default function CreateForm({ onClose, onCreate, eventToEdit }) {
     }
   };
 
-  // === FORM SUBMIT ===
+  
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!title.trim()) {
-      alert("Event title is required");
-      return;
+  e.preventDefault();
+
+  if (!title.trim()) {
+    alert("Event title is required");
+    return;
+  }
+
+  if (!isConfigured[locationType]) {
+    setOpenLocationModal(locationType);
+    return;
+  }
+
+  setIsSubmitting(true);
+  setSubmitError("");
+
+  try {
+    
+    const locationValue =
+      locationType === "Google Meet"
+        ? "Google Meet"
+        : locationType === "Zoom"
+        ? "Zoom"
+        : locationType === "phone"
+        ? `Phone Call • ${countryCode} ${phoneNumber}`
+        : `In Person • ${physicalAddress}`;
+
+    const questions = [
+      { question: "Name & Email" },
+      ...(askPhone ? [{ question: "Phone Number" }] : []),
+      ...(askPurpose ? [{ question: "Purpose of Meeting" }] : []),
+    ];
+
+    // const payload = {
+    //   title: title.trim(),
+    //   type: eventType,
+    //   duration: parseInt(duration),
+    //   weeklyAvailability: recurringSlots,
+    //   singleDayAvailability: singleSlots,
+    //   maxBookingsPerDay: parseInt(maxBookings),
+    //   location: locationType,
+    //   locationValue,
+    //   questions,
+    // };
+//     const payload = {
+//   title: title.trim(),
+//   type: eventType, // "one-on-one" or "group"
+//   duration: parseInt(duration),
+//   weeklyAvailability: recurringSlots,
+//   singleDayAvailability: singleSlots,
+//   maxBookingsPerDay: parseInt(maxBookings),
+//   location: "Google Meet",  // ← Use exact string from your working example
+//   locationValue: locationValue, // This is already correct
+//   questions: questions,
+//   timezone: "UTC",  // ← Add this — it was in the response, likely required or defaulted
+//   isActive: true    // ← Add this — common in such schemas
+// };
+    const payload = {
+      title: title.trim(),
+      type: eventType,
+      duration: parseInt(duration),
+      mode: recurringSlots.length > 0 ? "recurring" : "single", // or use a state if you have both
+      weeklyAvailability: recurringSlots,
+      singleDayAvailability: singleSlots,
+      maxBookingsPerDay: parseInt(maxBookings),
+      location: locationType === "phone" 
+        ? "Phone Call" 
+        : locationType === "physical" 
+        ? "In Person" 
+        : locationType, // "Google Meet" or "Zoom"
+      locationValue: locationValue,
+      questions: questions,
+    };
+
+    let result;
+    if (isEditMode && eventToEdit?._id) {
+      result = await updateEventType(eventToEdit._id, payload);
+    } else {
+      result = await createEventType(payload);
     }
 
-    if (!isConfigured[locationType]) {
-      setOpenLocationModal(locationType);
-      return;
+    onCreate(result);
+    onClose();
+  } catch (error) {
+    console.error("Submit error:", error);
+    let msg = "Failed to save event";
+    if (!error.response) {
+      msg = "Network error — check your internet or backend server";
+    } else if (error.response.status === 401) {
+      msg = "Unauthorized — invalid or expired token";
+    } else if (error.response.status === 404) {
+      msg = "Event not found";
+    } else if (error.response.data?.message) {
+      msg = error.response.data.message;
     }
-
-    setIsSubmitting(true);
-    setSubmitError("");
-
-    try {
-      const serverOk = await testServerConnection();
-      if (!serverOk) throw new Error("Server is not reachable");
-
-      const locationValue =
-        locationType === "google_meet"
-          ? "Google Meet"
-          : locationType === "zoom"
-          ? "Zoom"
-          : locationType === "phone"
-          ? `Phone Call • ${countryCode} ${phoneNumber}`
-          : `In Person • ${physicalAddress}`;
-
-      const questions = [
-        { question: "Name & Email" },
-        ...(askPhone ? [{ question: "Phone Number" }] : []),
-        ...(askPurpose ? [{ question: "Purpose of Meeting" }] : []),
-      ];
-
-      const availabilityData= [
-  {
-    day: "Monday",
-    start: "09:00",
-    end: "12:00",
-  },
-  {
-    day: "Monday",
-    start: "13:00",
-    end: "17:00",
-  },
-  {
-    day: "Tuesday",
-    start: "09:00",
-    end: "12:00",
-  },
-  {
-    day: "Tuesday",
-    start: "13:00",
-    end: "17:00",
-  },
-  
-]
-
-  
-
-
-      const payload = {
-        title: title.trim(),
-        type: eventType,
-        duration: parseInt(duration),
-        availability: availabilityData,
-        maxBookingsPerDay: parseInt(maxBookings),
-        location: locationType,
-        locationValue,
-        questions,
-        isActive: true,
-      };
-
-      let result;
-      if (isEditMode && eventToEdit?._id) {
-        result = await updateEventType(eventToEdit._id, payload);
-      } else {
-        result = await createEventType(payload);
-      }
-
-      onCreate(result);
-      onClose();
-    } catch (error) {
-      console.error("Submit error:", error);
-      let msg = "Failed to save event";
-
-      if (!error.response) {
-        msg = "Network error — check if backend is running";
-      } else if (error.response.status === 401) {
-        msg = "Unauthorized — invalid or expired token";
-      } else if (error.response.status === 404) {
-        msg = "Event not found";
-      } else if (error.response.data?.message) {
-        msg = error.response.data.message;
-      }
-
-      setSubmitError(msg);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    setSubmitError(msg);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   return (
     <>
@@ -394,7 +376,8 @@ export default function CreateForm({ onClose, onCreate, eventToEdit }) {
             {/* Duration */}
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-3">
-                <Clock className="w-5 h-5" /> Duration
+                <Clock className="w-5 h-5" />
+                Duration
               </label>
               <div className="grid grid-cols-3 gap-3">
                 {["15", "30", "60"].map((m) => (
@@ -426,12 +409,8 @@ export default function CreateForm({ onClose, onCreate, eventToEdit }) {
                 <div className="flex items-center gap-3">
                   <Calendar className="w-6 h-6 text-gray-700" />
                   <div className="text-left">
-                    <div className="font-semibold text-gray-900">
-                      Availability
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      Working hours (default)
-                    </div>
+                    <div className="font-semibold text-gray-900">Availability</div>
+                    <div className="text-sm text-gray-600">Working hours (default)</div>
                   </div>
                 </div>
                 <ChevronDown
@@ -479,7 +458,8 @@ export default function CreateForm({ onClose, onCreate, eventToEdit }) {
             {/* Max Bookings */}
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-2">
-                <Users className="w-5 h-5" /> Max Bookings Per Day
+                <Users className="w-5 h-5" />
+                Max Bookings Per Day
               </label>
               <input
                 type="number"
@@ -495,14 +475,14 @@ export default function CreateForm({ onClose, onCreate, eventToEdit }) {
             {/* Location Selector */}
             <div className="relative" ref={modalRef}>
               <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-4">
-                <MapPin className="w-5 h-5" /> Location
+                <MapPin className="w-5 h-5" />
+                Location
               </label>
               <div className="space-y-3">
                 {locations.map((loc) => {
                   const Icon = loc.icon;
                   const selected = locationType === loc.value;
                   const configured = isConfigured[loc.value];
-
                   return (
                     <div key={loc.value} className="relative">
                       <button
@@ -519,9 +499,7 @@ export default function CreateForm({ onClose, onCreate, eventToEdit }) {
                           selected
                             ? "border-blue-600 bg-blue-50 shadow-sm"
                             : "border-gray-200 hover:border-gray-300 bg-white"
-                        } ${
-                          isSubmitting ? "opacity-50 cursor-not-allowed" : ""
-                        }`}
+                        } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
                         disabled={isSubmitting}
                       >
                         <div className="flex items-center gap-4">
@@ -529,12 +507,11 @@ export default function CreateForm({ onClose, onCreate, eventToEdit }) {
                             <Icon className="w-6 h-6 text-gray-700" />
                           </div>
                           <div>
-                            <div className="font-semibold text-gray-900">
-                              {loc.label}
-                            </div>
+                            <div className="font-semibold text-gray-900">{loc.label}</div>
                             {configured && (
                               <div className="text-xs text-green-600 font-medium flex items-center gap-1">
-                                <Check className="w-3 h-3" /> Configured
+                                <Check className="w-3 h-3" />
+                                Configured
                               </div>
                             )}
                           </div>
@@ -550,17 +527,13 @@ export default function CreateForm({ onClose, onCreate, eventToEdit }) {
                       {openLocationModal === loc.value && !isSubmitting && (
                         <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-gray-200 z-50 overflow-hidden">
                           <div className="p-6">
-                            <h4 className="text-lg font-bold mb-4">
-                              {loc.label} Settings
-                            </h4>
-                            {loc.value === "google_meet" && (
+                            <h4 className="text-lg font-bold mb-4">{loc.label} Settings</h4>
+                            {loc.value === "Google Meet" && (
                               <div className="text-center py-8">
                                 {googleMeetConnected ? (
                                   <div className="p-6 bg-green-50 rounded-xl">
                                     <Check className="w-12 h-12 text-green-600 mx-auto mb-3" />
-                                    <p className="font-semibold text-green-800">
-                                      Connected!
-                                    </p>
+                                    <p className="font-semibold text-green-800">Connected!</p>
                                   </div>
                                 ) : (
                                   <button
@@ -580,9 +553,7 @@ export default function CreateForm({ onClose, onCreate, eventToEdit }) {
                                   </label>
                                   <select
                                     value={countryCode}
-                                    onChange={(e) =>
-                                      setCountryCode(e.target.value)
-                                    }
+                                    onChange={(e) => setCountryCode(e.target.value)}
                                     className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
                                   >
                                     <option value="+1">+1 (US)</option>
@@ -597,9 +568,7 @@ export default function CreateForm({ onClose, onCreate, eventToEdit }) {
                                   <input
                                     type="tel"
                                     value={phoneNumber}
-                                    onChange={(e) =>
-                                      setPhoneNumber(e.target.value)
-                                    }
+                                    onChange={(e) => setPhoneNumber(e.target.value)}
                                     placeholder="123-456-7890"
                                     className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
                                   />
@@ -613,9 +582,7 @@ export default function CreateForm({ onClose, onCreate, eventToEdit }) {
                                 </label>
                                 <textarea
                                   value={physicalAddress}
-                                  onChange={(e) =>
-                                    setPhysicalAddress(e.target.value)
-                                  }
+                                  onChange={(e) => setPhysicalAddress(e.target.value)}
                                   placeholder="Enter full address"
                                   rows={3}
                                   className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 resize-vertical"
@@ -650,7 +617,8 @@ export default function CreateForm({ onClose, onCreate, eventToEdit }) {
             {/* Questions */}
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-gray-900 mb-4">
-                <MessageSquare className="w-5 h-5" /> Additional Questions
+                <MessageSquare className="w-5 h-5" />
+                Additional Questions
               </label>
               <div className="space-y-3">
                 <div className="p-4 bg-gray-50 rounded-xl font-medium">
@@ -666,9 +634,7 @@ export default function CreateForm({ onClose, onCreate, eventToEdit }) {
                       type="checkbox"
                       checked={i === 0 ? askPhone : askPurpose}
                       onChange={(e) =>
-                        i === 0
-                          ? setAskPhone(e.target.checked)
-                          : setAskPurpose(e.target.checked)
+                        i === 0 ? setAskPhone(e.target.checked) : setAskPurpose(e.target.checked)
                       }
                       className="w-6 h-6 text-blue-600 rounded focus:ring-blue-500"
                       disabled={isSubmitting}
@@ -718,15 +684,19 @@ export default function CreateForm({ onClose, onCreate, eventToEdit }) {
       {/* Availability Edit Modal */}
       {isEditModalOpen && (
         <>
-          <div
-            className="fixed inset-0 bg-black/70 z-50"
-            onClick={() => setIsEditModalOpen(false)}
-          />
+          <div className="fixed inset-0 bg-black/70 z-50" onClick={() => setIsEditModalOpen(false)} />
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-300">
               <CalendarView
                 modalMode={true}
                 onClose={() => setIsEditModalOpen(false)}
+                initialSingleSlots={singleSlots}
+                initialRecurringSlots={recurringSlots}
+                onSave={({ single, recurring }) => {
+                  setSingleSlots(single || []);
+                  setRecurringSlots(recurring || []);
+                  setIsEditModalOpen(false);
+                }}
               />
             </div>
           </div>

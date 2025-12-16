@@ -1,4 +1,6 @@
 // meeting.jsx 
+
+
 import React, { useState, useMemo } from "react";
 import { Toaster, toast } from "react-hot-toast";
 import {
@@ -17,6 +19,53 @@ import { Clock, ChevronLeft, ChevronRight, Play } from "lucide-react";
 
 // Import your EventDetails component
 import EventDetails from "../dashboardcomponent/meetingeventdetail";
+const API_BASE = "http://192.168.0.245:4000";
+
+const getHeaders = () => ({
+  "Content-Type": "application/json",
+});
+const bookMeeting = async (payload) => {
+  const res = await fetch(`${API_BASE}/meetings/book`, {
+    method: "POST",
+    headers: getHeaders(),
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.message || "Meeting booking failed");
+  }
+
+  return res.json();
+};
+const handleBookMeeting = async (event) => {
+  try {
+    const payload = {
+      userEmail: event.invitee.email,
+      meetingTitle: event.title,
+      duration: 30,
+      callType: "google_meet",
+      whoCallsWho: "host_calls_invitee",
+      inviteePhoneNumber: event.location,
+      hosts: [
+        {
+          id: "host1",
+          name: event.host,
+          timeZone: "Asia/Kolkata",
+        },
+      ],
+      selectedDate: event.date,
+      selectedTime: event.timeOnly,
+    };
+
+    await bookMeeting(payload);
+    toast.success("Meeting booked successfully 🎉");
+
+  } catch (error) {
+    toast.error(error.message);
+  }
+};
+
 
 // No Events Illustration
 const NoEventsIllustration = () => (
@@ -182,8 +231,11 @@ const DateRangePicker = ({ range, onRangeChange, onApply }) => {
   );
 };
 
+
+
+
 // UPDATED EventListItem — Now with dropdown details
-const EventListItem = ({ event }) => {
+const EventListItem = ({ event, onBookMeeting }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const toggleDetails = (e) => {
@@ -192,74 +244,75 @@ const EventListItem = ({ event }) => {
   };
 
 
-    
-  return (
-  <div className="relative">
-    {/* Event Card */}
-    <div
-      className={`rounded-xl shadow-sm hover:shadow-md transition-all duration-200 bg-white border border-gray-200 cursor-pointer ${
-        isOpen ?  "border-gray-200 border-b-0 rounded-b-none shadow-lg z-20 relative" 
-          : "border-gray-200 cursor-pointer"
-      }`}
-      onClick={toggleDetails}
-    >
-      <div className="flex flex-col p-4 sm:p-5">
-        <div className="flex items-center justify-between min-w-0 mb-2">
-          <div className="flex items-center gap-2 sm:gap-3 `shrink-0`min-w-0">
-            <span
-              className="w-2 h-2 rounded-full `shrink-0`"
-              style={{ backgroundColor: event.eventColor }}
-            />
-            <div className="text-sm font-semibold text-gray-900 truncate">
-              {event.timeOnly}
-            </div>
-          </div>
-          <button
-            onClick={toggleDetails}
-            className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 hover:text-blue-600 transition-colors p-1 cursor-pointer"
-          >
-            <Play
-              className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? "rotate-90 " : ""}`}
-              fill="currentColor"
-            />
-            Details
-          </button>
-        </div>
 
-        <div className="flex flex-col pl-4 sm:pl-5 min-w-0">
-          <div className="font-bold text-gray-900 text-sm truncate mb-0.5">
-            {event.invitee.name}
+  return (
+    <div className="relative">
+      {/* Event Card */}
+      <div
+        className={`rounded-xl shadow-sm hover:shadow-md transition-all duration-200 bg-white border border-gray-200 cursor-pointer ${isOpen ? "border-gray-200 border-b-0 rounded-b-none shadow-lg z-20 relative"
+          : "border-gray-200 cursor-pointer"
+          }`}
+        onClick={toggleDetails}
+      >
+        <div className="flex flex-col p-4 sm:p-5">
+          <div className="flex items-center justify-between min-w-0 mb-2">
+            <div className="flex items-center gap-2 sm:gap-3 `shrink-0`min-w-0">
+              <span
+                className="w-2 h-2 rounded-full `shrink-0`"
+                style={{ backgroundColor: event.eventColor }}
+              />
+              <div className="text-sm font-semibold text-gray-900 truncate">
+                {event.timeOnly}
+              </div>
+            </div>
+            <button
+              onClick={toggleDetails}
+              className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 hover:text-blue-600 transition-colors p-1 cursor-pointer"
+            >
+              <Play
+                className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? "rotate-90 " : ""}`}
+                fill="currentColor"
+              />
+              Details
+            </button>
           </div>
-          <div className="text-sm text-gray-600 truncate">
-            Event type <strong className="font-semibold text-gray-800">{event.type}</strong>
+
+          <div className="flex flex-col pl-4 sm:pl-5 min-w-0">
+            <div className="font-bold text-gray-900 text-sm truncate mb-0.5">
+              {event.invitee.name}
+            </div>
+            <div className="text-sm text-gray-600 truncate">
+              Event type <strong className="font-semibold text-gray-800">{event.type}</strong>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    {/* Dropdown Details - PERFECTLY MATCHES CARD WIDTH */}
-    {isOpen && (
-      <>
-        {/* Backdrop */}
-        <div
-          className="fixed inset-0 z-20"
-          onClick={() => setIsOpen(false)}
-        />
+      {/* Dropdown Details - PERFECTLY MATCHES CARD WIDTH */}
+      {isOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-20"
+            onClick={() => setIsOpen(false)}
+          />
 
-        {/* Dropdown Panel - Same exact width as card */}
-        <div className="absolute top-full left-0 right-0 z-20 -mt-px animate-in slide-in-from-top-2 duration-200">
-          <div className="bg-white rounded-b-xl rounded-t-none border-x border-b border-gray-200 shadow-2xl overflow-hidden">
-            <EventDetails
-              event={event}
-              isOpen={true}
-              onClose={() => setIsOpen(false)}
-            />
+          {/* Dropdown Panel - Same exact width as card */}
+          <div className="absolute top-full left-0 right-0 z-20 -mt-px animate-in slide-in-from-top-2 duration-200">
+            <div className="bg-white rounded-b-xl rounded-t-none border-x border-b border-gray-200 shadow-2xl overflow-hidden">
+              <EventDetails
+                event={event}
+                isOpen={true}
+                onClose={() => setIsOpen(false)}
+                onBookMeeting={onBookMeeting}
+              />
+
+            </div>
           </div>
-        </div>
-      </>
-    )}
-  </div>
-);
+        </>
+      )}
+    </div>
+  );
 };
 
 // Sample Events Data
@@ -378,11 +431,11 @@ export default function App() {
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
       <Toaster position="top-center" />
 
-     <div className="sticky top-0 z-20 bg-white border-b border-gray-200 px-4 sm:px-8 py-5 transition-shadow duration-200 shadow-sm `[&:has(+*scrolled)]:shadow-md">
-  <div className="w-full max-w-7xl mx-auto">
-    <h1 className="text-2xl font-semibold text-gray-900">Meetings </h1>
-  </div>
-</div>
+      <div className="sticky top-0 z-20 bg-white border-b border-gray-200 px-4 sm:px-8 py-5 transition-shadow duration-200 shadow-sm `[&:has(+*scrolled)]:shadow-md">
+        <div className="w-full max-w-7xl mx-auto">
+          <h1 className="text-2xl font-semibold text-gray-900">Meetings </h1>
+        </div>
+      </div>
 
       <div className="flex-1 p-4 sm:p-8">
         <div className="w-full max-w-7xl mx-auto mb-6">
@@ -394,11 +447,10 @@ export default function App() {
                 <button
                   key={tabKey}
                   onClick={() => handleFilterChange(tabKey)}
-                  className={`py-2 px-3 sm:px-4 text-sm font-semibold rounded-t-lg transition-colors ${
-                    isActive
-                      ? "text-blue-600 border-b-2 border-blue-600 bg-white"
-                      : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-                  }`}
+                  className={`py-2 px-3 sm:px-4 text-sm font-semibold rounded-t-lg transition-colors ${isActive
+                    ? "text-blue-600 border-b-2 border-blue-600 bg-white"
+                    : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                    }`}
                 >
                   {tab}
                 </button>
@@ -433,7 +485,11 @@ export default function App() {
               Showing {filteredEvents.length} events for {filter.charAt(0).toUpperCase() + filter.slice(1)}
             </p>
             {filteredEvents.map((event) => (
-              <EventListItem key={event.id} event={event} />
+              <EventListItem
+                key={event.id}
+                event={event}
+                onBookMeeting={handleBookMeeting}
+              />
             ))}
           </div>
         )}

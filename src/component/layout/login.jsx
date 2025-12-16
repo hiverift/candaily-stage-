@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { Chrome, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import API_URL from "../../config/config";
 
 export default function LogIn() {
   const [error, setError] = useState("");
@@ -12,11 +13,11 @@ export default function LogIn() {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
 
-  const API_BASE = "http://192.168.0.245:5000";
+  const API_BASE = API_URL.BASE_URL;
 
   // ✔ GOOGLE LOGIN (Frontend → Backend → Google OAuth)
   const handleGoogleSignIn = () => {
-    window.location.href = "http://192.168.0.245:4000/auth/google";
+    window.location.href = `${API_BASE}/auth/google`;
   };
 
   // ✔ NORMAL EMAIL LOGIN
@@ -47,12 +48,40 @@ export default function LogIn() {
 
       if (!response.ok) throw new Error(data.message || "Login failed");
 
+      // if (data?.statusCode === 200) {
+      //   localStorage.setItem("token", data?.result?.access_token);
+      //   localStorage.setItem("user", JSON.stringify(data?.result?.user));
+
+      //   navigate("/dashboard", { replace: true });
+      //       if (data?.statusCode === 200) {
+      //   localStorage.setItem("token", data?.result?.access_token);
+      //   localStorage.setItem("user", JSON.stringify(data?.result?.user));
+
+      //   // Add this line to save userId separately:
+      //   // if (data?.result?.user?._id) {
+      //   //   localStorage.setItem("user
+      //   // ", data.result.user._id);
+      //   // }
+      //   if (data?.result?.user?._id) {
+      //   localStorage.setItem("userId", data.result.user._id);
+      // }
+
+
+      //   navigate("/dashboard", { replace: true });
+      // }
       if (data?.statusCode === 200) {
+        
         localStorage.setItem("token", data?.result?.access_token);
         localStorage.setItem("user", JSON.stringify(data?.result?.user));
+        console.log('data',data)
+        if (data?.result?.user?._id) {
+          localStorage.setItem("userId", data.result.user._id); // important for ProfilePage
+        }
 
         navigate("/dashboard", { replace: true });
-      } else {
+      }
+
+      else {
         throw new Error("Invalid response from server");
       }
     } catch (err) {
@@ -205,3 +234,55 @@ export default function LogIn() {
     </div>
   );
 }
+// import React, { useState } from "react";
+// import { Chrome, Mail, Lock, Eye, EyeOff } from "lucide-react";
+// import { useNavigate } from "react-router-dom";
+// import { loginUser , googleLogin } from "../../api/auth.api";
+
+// export default function LogIn() {
+//   const [error, setError] = useState("");
+//   const [loading, setLoading] = useState(false);
+//   const [email, setEmail] = useState("");
+//   const [password, setPassword] = useState("");
+//   const navigate = useNavigate();
+//   const [showPassword, setShowPassword] = useState(false);
+
+//   // ✔ NORMAL EMAIL LOGIN (API Gateway)
+//   const handleSignIn = async (e) => {
+//     e.preventDefault();
+//     setLoading(true);
+//     setError("");
+
+//     try {
+//       const res = await loginUser({
+//         email: email.trim(),
+//         password,
+//       });
+
+//       const data = res.data;
+
+//       if (data?.statusCode === 200) {
+//         localStorage.setItem("token", data?.result?.access_token);
+//         localStorage.setItem("user", JSON.stringify(data?.result?.user));
+
+//         navigate("/dashboard", { replace: true });
+//       } else {
+//         throw new Error("Invalid response");
+//       }
+//     } catch (err) {
+//       setError(
+//         err?.response?.data?.message ||
+//           "Invalid email or password. Please try again."
+//       );
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+//   return (
+//     /* 🔥 UI SAME AS YOUR CODE 🔥 */
+//     <button onClick={googleLogin}>
+//       <Chrome /> Continue with Google
+//     </button>
+//   );
+// }

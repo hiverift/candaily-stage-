@@ -9,7 +9,7 @@ export default function ForgotPassword() {
   const [message, setMessage] = useState("");
   const navigate = useNavigate();
 
-  const API_BASE = "http://192.168.0.245:5000";
+  const API_BASE = "http://192.168.0.245:4000";
 
   const handleSubmit = async (e) => {
     e.preventDefault();

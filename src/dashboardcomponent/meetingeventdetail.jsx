@@ -7,31 +7,31 @@ import eventBus from "../lib/eventBus";
 // === ALL SVG ICONS ===
 const RescheduleIcon = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M13.3333 8C13.3333 11.3137 10.3137 14.3333 7 14.3333C3.68629 14.3333 0.666667 11.3137 0.666667 8C0.666667 4.68629 3.68629 1.66667 7 1.66667C10.3137 1.66667 13.3333 4.68629 13.3333 8ZM13.3333 8L10 11.3333M13.3333 8L10 4.66667" stroke="#4A4A4A" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M13.3333 8C13.3333 11.3137 10.3137 14.3333 7 14.3333C3.68629 14.3333 0.666667 11.3137 0.666667 8C0.666667 4.68629 3.68629 1.66667 7 1.66667C10.3137 1.66667 13.3333 4.68629 13.3333 8ZM13.3333 8L10 11.3333M13.3333 8L10 4.66667" stroke="#4A4A4A" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
 const CancelIcon = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M12 4L4 12M4 4L12 12" stroke="#4A4A4A" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M12 4L4 12M4 4L12 12" stroke="#4A4A4A" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
 const EditEventTypeIcon = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M1.33333 8H14.6667M8 1.33333V14.6667" stroke="#4A4A4A" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M1.33333 8H14.6667M8 1.33333V14.6667" stroke="#4A4A4A" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
 const ScheduleAgainIcon = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M13.3333 8C13.3333 11.3137 10.3137 14.3333 7 14.3333C3.68629 14.3333 0.666667 11.3137 0.666667 8C0.666667 4.68629 3.68629 1.66667 7 1.66667C10.3137 1.66667 13.3333 4.68629 13.3333 8ZM13.3333 8L10 11.3333M13.3333 8L10 4.66667" stroke="#4A4A4A" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M13.3333 8C13.3333 11.3137 10.3137 14.3333 7 14.3333C3.68629 14.3333 0.666667 11.3137 0.666667 8C0.666667 4.68629 3.68629 1.66667 7 1.66667C10.3137 1.66667 13.3333 4.68629 13.3333 8ZM13.3333 8L10 11.3333M13.3333 8L10 4.66667" stroke="#4A4A4A" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
 const AddNotesIcon = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M8 1.33333V14.6667M1.33333 8H14.6667" stroke="#3182CE" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M8 1.33333V14.6667M1.33333 8H14.6667" stroke="#3182CE" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
@@ -83,7 +83,11 @@ const DataSection = ({ label, children }) => (
   </div>
 );
 
-export default function EventDetails({ event = MOCK_EVENT_DATA }) {
+export default function EventDetails({
+  event = MOCK_EVENT_DATA,
+  onBookMeeting
+}) {
+
   const [isDeleted, setIsDeleted] = useState(false);
   const [isEditingEmail, setIsEditingEmail] = useState(false);
   const [email, setEmail] = useState(event.invitee.email);
@@ -150,7 +154,7 @@ export default function EventDetails({ event = MOCK_EVENT_DATA }) {
       <div className="min-h-screen bg-white flex flex-col">
         <div className="flex-1 max-w-4xl w-full mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] divide-y lg:divide-y-0 lg:divide-x divide-gray-200 bg-white">
-            
+
             {/* LEFT PANEL - ACTIONS */}
             <div className="p-6 space-y-6">
               {!isPast && (
@@ -248,7 +252,7 @@ export default function EventDetails({ event = MOCK_EVENT_DATA }) {
               </DataSection>
 
               <div className="py-4">
-                <button 
+                <button
                   className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
                   onClick={() => setIsAddingNotes(true)}
                 >
@@ -304,4 +308,10 @@ export default function EventDetails({ event = MOCK_EVENT_DATA }) {
       <Toaster position="top-center" />
     </>
   );
+  <PrimaryActionButton
+  Icon={ScheduleAgainIcon}
+  label="Book This Meeting"
+  onClick={() => onBookMeeting(event)}
+/>
+
 }

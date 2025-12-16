@@ -1,5 +1,5 @@
 // SchedulingPage.jsx
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, memo } from "react";
 import {
   Plus,
   Search,
@@ -200,20 +200,28 @@ export default function SchedulingPage() {
     try {
       const token = localStorage.getItem("token") || "";
       setToken(token);
+      const check = JSON.parse(localStorage.getItem('user'));
 
-      const response = await fetch("http://192.168.0.245:5000/event-types", {
+      console.log('get data user data', check.id)
+      const response = await fetch(`http://192.168.0.245:4000/event-types/findByUserid/${check.id}`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
       });
-
+      //  console.log('response',response)
       if (!response.ok) throw new Error("Failed to fetch events");
 
+      // const data = await response.json();
+      // console.log("Fetched events:", data.result.event);
+      // setEvents(data.result.event);
       const data = await response.json();
-      console.log("Fetched events:", data);
-      setEvents(data);
+      console.log("Fetched events:", data.result.event);
+
+      const eventData = data.result.event;
+      setEvents(Array.isArray(eventData) ? eventData : [eventData]);
+
     } catch (err) {
       console.error(err);
       addToast("Failed to fetch events");
@@ -276,7 +284,7 @@ export default function SchedulingPage() {
 
     try {
       const response = await axios.patch(
-        `http://192.168.0.245:5000/event-types/${id}/toggle`,
+        `http://192.168.0.245:4000/event-types/${id}/toggle`,
         {},
         {
           headers: {
@@ -305,7 +313,7 @@ export default function SchedulingPage() {
     if (!window.confirm("Delete this event type?")) return;
 
     try {
-      await axios.delete(`http://192.168.0.245:5000/event-types/${id}`, {
+      await axios.delete(`http://192.168.0.245:4000/event-types/${id}`, {
         headers: {
           Authorization: `Bearer ${AUTH_TOKEN}`,
         },
@@ -334,7 +342,7 @@ export default function SchedulingPage() {
       // If your API supports bulk delete, replace this with that endpoint.
       await Promise.all(
         ids.map((id) =>
-          axios.delete(`http://192.168.0.245:5000/event-types/${id}`, {
+          axios.delete(`http://192.168.0.245:4000/event-types/${id}`, {
             headers: { Authorization: `Bearer ${AUTH_TOKEN}` },
           })
         )
@@ -359,7 +367,7 @@ export default function SchedulingPage() {
         ids.map((id) =>
           axios
             .patch(
-              `http://192.168.0.245:5000/event-types/${id}/toggle`,
+              `http://192.168.0.245:4000/event-types/${id}/toggle`,
               {},
               { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }
             )
@@ -406,9 +414,9 @@ export default function SchedulingPage() {
     const [hovered, setHovered] = useState(false);
     const [dropdownOpen, setDropdownOpen] = useState(false);
 
-    const filteredEvents = eventTypes.filter((item) =>
-      item.name?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    // const filteredEvents = eventTypes.filter((item) =>
+    //   item.name?.toLowerCase().includes(searchTerm.toLowerCase())
+    // );
 
     const handleCopyLink = async () => {
       try {
@@ -418,9 +426,9 @@ export default function SchedulingPage() {
           localStorage.getItem("token") || sessionStorage.getItem("token");
         const headers = token
           ? {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            }
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          }
           : { "Content-Type": "application/json" };
 
         const response = await fetch(
@@ -446,9 +454,8 @@ export default function SchedulingPage() {
         setTimeout(() => setIsCopied(false), 2000);
       } catch (error) {
         console.error("Failed to fetch/copy share link:", error);
-        const fallbackUrl = `${window.location.origin}/book/${
-          event.slug || event._id
-        }`;
+        const fallbackUrl = `${window.location.origin}/book/${event.slug || event._id
+          }`;
         await navigator.clipboard.writeText(fallbackUrl);
         addToast("Link copied (using fallback)!");
 
@@ -493,9 +500,8 @@ export default function SchedulingPage() {
 
           <div className="flex items-center flex-wrap gap-3">
             <div
-              className={`hidden sm:flex items-center gap-2 transition-opacity ${
-                hovered ? "opacity-100" : "opacity-0"
-              }`}
+              className={`hidden sm:flex items-center gap-2 transition-opacity ${hovered ? "opacity-100" : "opacity-0"
+                }`}
             >
               <button
                 className="p-2.5 rounded-lg hover:bg-gray-100"
@@ -628,9 +634,8 @@ export default function SchedulingPage() {
                           }}
                         />
                         <div
-                          className={`relative w-10 h-6 rounded-full peer ${
-                            event.isActive ? "bg-blue-600" : "bg-gray-200"
-                          } after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full`}
+                          className={`relative w-10 h-6 rounded-full peer ${event.isActive ? "bg-blue-600" : "bg-gray-200"
+                            } after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full`}
                         />
                       </label>
                     </div>
@@ -684,13 +689,14 @@ export default function SchedulingPage() {
       <div className="bg-gray-50 min-h-screen pb-20">
         <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="space-y-4">
+            
             {events
-              .filter((event) =>
-                event.title?.toLowerCase().includes(searchTerm.toLowerCase())
-              )
+              .filter((event) => event && event.title?.toLowerCase().includes(searchTerm.toLowerCase()))
               .map((event) => (
                 <EventCard key={event._id} event={event} />
               ))}
+
+
           </div>
         </div>
       </div>
@@ -717,13 +723,12 @@ export default function SchedulingPage() {
         />
       )}
 
-      {/* Add to Website Modal */}
       {websiteModalEvent && (
         <AddToWebsiteModal
           open={!!websiteModalEvent}
           onClose={() => setWebsiteModalEvent(null)}
           onContinue={handleWebsiteContinue}
-          eventTitle={websiteModalEvent.title}
+          eventTitle={websiteModalEvent?.title || ""}
         />
       )}
 

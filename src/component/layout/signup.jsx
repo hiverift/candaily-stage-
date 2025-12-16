@@ -77,7 +77,20 @@ export default function SignUp() {
 
         const data = await response.json();
 
+        // if (response.ok && data.statusCode === 201) {
+        //   setSuccess(true);
+        //   setTimeout(() => {
+        //     navigate("/login");
+        //   }, 2200);
         if (response.ok && data.statusCode === 201) {
+          // Save userId and token (if backend provides token)
+          if (data.user && data.user._id) {
+            localStorage.setItem("userId", data.user._id);
+          }
+          if (data.token) {
+            localStorage.setItem("token", data.token);
+          }
+
           setSuccess(true);
           setTimeout(() => {
             navigate("/login");
