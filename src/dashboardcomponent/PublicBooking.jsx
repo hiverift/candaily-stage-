@@ -1,5 +1,5 @@
 import { useParams, useSearchParams } from "react-router-dom";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { 
   Clock, Globe, Check, ChevronLeft, ChevronRight, 
   ArrowLeft, Users, Edit3, X 
@@ -8,19 +8,6 @@ import toast, { Toaster } from "react-hot-toast";
 import dayjs from 'dayjs';
 import isSameOrAfter from 'dayjs/plugin/isSameOrAfter';
 dayjs.extend(isSameOrAfter);
-
-
-
-// --- MOCK DATA & HELPERS ---
-const mockEvents = {
-  "1": {
-    id: "1",
-    title: "New Meeting",
-    duration: 30,
-    host: "Samunder",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Samunder"
-  }
-};
 
 const timezoneOptions = [
   { value: "Asia/Kolkata", label: "India Standard Time (IST)" },
@@ -58,40 +45,92 @@ export default function PublicBooking({ forceReschedule = false, onClose, prefil
   const urlEmail = searchParams.get("email") || "";
   const isRescheduleFromUrl = searchParams.get("reschedule") === "true";
 
-  // const [name, setName] = useState(urlName);
-  // const [email, setEmail] = useState(urlEmail);
   const { eventId } = useParams();
-  const event = mockEvents[eventId] || mockEvents["1"];
+  const [event, setEvent] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  
-  
-const [step, setStep] = useState(forceReschedule ? "calendar" : "calendar");
-  // const [isRescheduleMode, setIsRescheduleMode] = useState(forceReschedule);
-  // const [showRescheduleModal, setShowRescheduleModal] = useState(forceReschedule);
+  useEffect(() => {
+    const fetchEvent = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-  const [currentMonth, setCurrentMonth] = useState(dayjs("2025-11-01"));
+        const token = localStorage.getItem("token");
+        if (!token) {
+          throw new Error("Authentication token missing. Please log in again.");
+        }
+
+        const res = await fetch(
+          `http://192.168.0.245:4000/event-types/${eventId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.message || "Failed to load event");
+        }
+
+        const data = await res.json();
+        console.log("Fetched event data:", data);
+
+        setEvent({
+          id: data._id,
+          title: data.title || "Untitled Event",
+          duration: data.duration || 30,
+          host: data.hostName || data.host?.name || "Host",
+          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${data._id || "default"}`,
+          timezone: data.timezone || "Asia/Kolkata",
+        });
+
+        if (data.timezone) {
+          setSelectedTimezone(data.timezone);
+        }
+      } catch (err) {
+        console.error("Event fetch error:", err);
+        setError(err.message || "Something went wrong");
+        toast.error(err.message || "Could not load event details");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (eventId) {
+      fetchEvent();
+    } else {
+      setError("Invalid event link");
+      setLoading(false);
+    }
+  }, [eventId]);
+
+  const [step, setStep] = useState(forceReschedule ? "calendar" : "calendar");
+
+  const [currentMonth, setCurrentMonth] = useState(dayjs());
   const [selectedTimezone, setSelectedTimezone] = useState(timezoneOptions[0].value);
   const [selectedTime, setSelectedTime] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
 
   // Form state
-  const [name, setName] = useState(prefill?.name || "");
-const [email, setEmail] = useState(prefill?.email || "");
+  const [name, setName] = useState(prefill?.name || urlName || "");
+  const [email, setEmail] = useState(prefill?.email || urlEmail || "");
   const [guestEmails, setGuestEmails] = useState("");
   const [note, setNote] = useState("");
   const [showGuestsInput, setShowGuestsInput] = useState(false);
   const [rescheduleReason, setRescheduleReason] = useState("");
 
   const [showRescheduleModal, setShowRescheduleModal] = useState(isRescheduleFromUrl);
-  const [isRescheduleMode] = useState(isRescheduleFromUrl);
+  const [isRescheduleMode] = useState(isRescheduleFromUrl || forceReschedule);
 
   // Calendar Logic
   const goToPrevMonth = () => {
-    if (currentMonth.isAfter(dayjs("2025-11-01"))) {
-      setCurrentMonth(prev => prev.subtract(1, 'month'));
-      setSelectedDate(null);
-      setSelectedTime(null);
-    }
+    setCurrentMonth(prev => prev.subtract(1, 'month'));
+    setSelectedDate(null);
+    setSelectedTime(null);
   };
 
   const goToNextMonth = () => {
@@ -112,8 +151,7 @@ const [email, setEmail] = useState(prefill?.email || "");
 
     for (let d = 1; d <= daysInMonth; d++) {
       const date = startOfMonth.date(d);
-      const isMockMonth = currentMonth.year() === 2025 && currentMonth.month() === 10;
-      const isAvailable = isMockMonth ? d >= 29 : date.startOf('day').isSameOrAfter(today.startOf('day'));
+      const isAvailable = date.startOf('day').isSameOrAfter(today.startOf('day'));
 
       daysArray.push({ 
         date: date.toDate(),
@@ -131,10 +169,10 @@ const [email, setEmail] = useState(prefill?.email || "");
   ];
 
   const handleSchedule = (e) => {
-    // ... same logic
+    e.preventDefault();
     setStep("success");
     toast.success(isRescheduleMode ? "Event rescheduled!" : "Event scheduled!");
-    if (onClose) onClose(); // ← ye add karo
+    if (onClose) setTimeout(onClose, 2000);
   };
 
   const handleDateSelection = (dateObject) => {
@@ -152,25 +190,36 @@ const [email, setEmail] = useState(prefill?.email || "");
     setSelectedTime(null);
   };
 
-  const openReschedule = () => {
-    setIsRescheduleMode(true);
-    setShowRescheduleModal(true);
-    setStep("calendar");
-    setSelectedDate(null);
-    setSelectedTime(null);
-  };
-
-  if (step === "success" && onClose) {
-    // Auto close after 2 sec (optional)
-    setTimeout(onClose, 2000);
-  }
-
   const closeRescheduleModal = () => {
     setShowRescheduleModal(false);
-    setIsRescheduleMode(false);
     setRescheduleReason("");
     setStep("calendar");
   };
+
+  // === LOADING STATE ===
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 text-lg">Loading event details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // === ERROR STATE ===
+  if (error || !event) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 text-center max-w-md">
+          <X className="w-16 h-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Event Not Available</h2>
+          <p className="text-gray-600">{error || "This scheduling link is invalid or no longer active."}</p>
+        </div>
+      </div>
+    );
+  }
 
   // === SUCCESS SCREEN ===
   if (step === "success") {
@@ -208,8 +257,6 @@ const [email, setEmail] = useState(prefill?.email || "");
                 <span>{timezoneOptions.find(t => t.value === selectedTimezone)?.label || "Timezone Unknown"}</span>
               </div>
             </div>
-
-         
           </div>
         </div>
         <Toaster position="top-center" />
@@ -218,20 +265,16 @@ const [email, setEmail] = useState(prefill?.email || "");
   }
 
   // === RESCHEDULE MODAL ===
-  if (showRescheduleModal)  {
+  if (showRescheduleModal) {
     const selectedTzLabel = timezoneOptions.find(t => t.value === selectedTimezone)?.label;
     const displayEndTimeForSidebar = selectedTime ? getEndTime(selectedTime, event.duration, selectedDate) : null;
 
     return (
       <>
-        {/* Overlay */}
         <div className="fixed inset-0 bg-white bg-opacity-50 z-50" onClick={closeRescheduleModal} />
-
-        {/* Modal */}
         <div className="fixed inset-0 z-50 overflow-y-auto font-inter">
           <div className="flex min-h-full items-center justify-center p-4">
             <div className="w-full max-w-7xl bg-white rounded-3xl shadow-2xl overflow-hidden">
-              {/* Header */}
               <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50">
                 <h2 className="text-2xl font-bold text-gray-900">Reschedule Event</h2>
                 <button onClick={closeRescheduleModal} className="p-2 hover:bg-gray-200 rounded-full transition">
@@ -240,7 +283,6 @@ const [email, setEmail] = useState(prefill?.email || "");
               </div>
 
               <div className="grid lg:grid-cols-12 gap-6 lg:gap-10">
-                {/* Left Sidebar */}
                 <div className="lg:col-span-4 p-6 sm:p-8 lg:border-r border-gray-100 bg-gray-50/30">
                   <div className="lg:sticky lg:top-8">
                     <h2 className="text-lg sm:text-xl font-medium text-gray-600 mb-1">{event.host}</h2>
@@ -273,15 +315,13 @@ const [email, setEmail] = useState(prefill?.email || "");
                   </div>
                 </div>
 
-                {/* Right Panel */}
                 <div className="lg:col-span-8 p-6 sm:p-10">
                   {step === "calendar" && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10">
-                      {/* Calendar */}
                       <div>
                         <h2 className="text-xl sm:text-2xl font-bold mb-6 sm:mb-8 text-gray-900">Select a Date & Time</h2>
                         <div className="flex justify-between items-center mb-6">
-                          <button onClick={goToPrevMonth} className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition disabled:opacity-50" disabled={currentMonth.isSame(dayjs("2025-11-01"), 'month')}>
+                          <button onClick={goToPrevMonth} className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition">
                             <ChevronLeft className="w-5 h-5" />
                           </button>
                           <h3 className="text-lg sm:text-xl font-semibold text-gray-900">
@@ -305,7 +345,7 @@ const [email, setEmail] = useState(prefill?.email || "");
                                 disabled={!day.available}
                                 className={`relative h-10 sm:h-12 rounded-full text-sm sm:text-base font-medium transition-all ${
                                   !day.available ? "text-gray-300 cursor-not-allowed" :
-                                  selectedDate?.getDate() === day.day && selectedDate?.getMonth() === currentMonth.month()
+                                  selectedDate?.getDate() === day.day && selectedDate?.getMonth() === currentMonth.month() && selectedDate?.getYear() === currentMonth.year()
                                     ? "bg-blue-600 text-white shadow-lg" : 
                                   day.isToday && day.available 
                                     ? "border-2 border-blue-400 text-blue-600 hover:bg-blue-50" : 
@@ -335,7 +375,6 @@ const [email, setEmail] = useState(prefill?.email || "");
                         </div>
                       </div>
 
-                      {/* Time Slots */}
                       {selectedDate && (
                         <div className="pt-6 md:pt-0 md:border-l md:pl-10">
                           <h3 className="text-lg sm:text-xl font-semibold mb-5 text-gray-700">
@@ -357,7 +396,6 @@ const [email, setEmail] = useState(prefill?.email || "");
                     </div>
                   )}
 
-                  {/* Reschedule Form */}
                   {step === "form" && (
                     <div className="max-w-xl">
                       <button onClick={handleBackToCalendar} className="mb-8 p-2 rounded-full hover:bg-gray-100 transition">
@@ -453,7 +491,7 @@ const [email, setEmail] = useState(prefill?.email || "");
     );
   }
 
-  // === MAIN BOOKING FLOW (Original UI Preserved 100%) ===
+  // === MAIN BOOKING FLOW ===
   const selectedTzLabel = timezoneOptions.find(t => t.value === selectedTimezone)?.label;
   const displayEndTimeForSidebar = selectedTime ? getEndTime(selectedTime, event.duration, selectedDate) : null;
 
@@ -463,7 +501,6 @@ const [email, setEmail] = useState(prefill?.email || "");
         <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 sm:py-10">
           <div className="grid lg:grid-cols-12 gap-6 lg:gap-10 bg-white shadow-xl rounded-3xl overflow-hidden">
             
-            {/* LEFT SIDEBAR */}
             <div className="lg:col-span-4 p-6 sm:p-8 lg:border-r border-gray-100">
               <div className="lg:sticky lg:top-8">
                 <h2 className="text-lg sm:text-xl font-medium text-gray-600 mb-1">{event.host}</h2>
@@ -497,15 +534,13 @@ const [email, setEmail] = useState(prefill?.email || "");
               </div>
             </div>
 
-            {/* RIGHT MAIN PANEL */}
             <div className="lg:col-span-8 p-6 sm:p-10">
               {step === "calendar" && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10">
-                  {/* Calendar */}
                   <div>
                     <h2 className="text-xl sm:text-2xl font-bold mb-6 sm:mb-8 text-gray-900">Select a Date & Time</h2>
                     <div className="flex justify-between items-center mb-6">
-                      <button onClick={goToPrevMonth} className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition disabled:opacity-50" disabled={currentMonth.isSame(dayjs("2025-11-01"), 'month')}>
+                      <button onClick={goToPrevMonth} className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition">
                         <ChevronLeft className="w-5 h-5" />
                       </button>
                       <h3 className="text-lg sm:text-xl font-semibold text-gray-900">
@@ -529,7 +564,7 @@ const [email, setEmail] = useState(prefill?.email || "");
                             disabled={!day.available}
                             className={`relative h-10 sm:h-12 rounded-full text-sm sm:text-base font-medium transition-all ${
                               !day.available ? "text-gray-300 cursor-not-allowed" :
-                              selectedDate?.getDate() === day.day && selectedDate?.getMonth() === currentMonth.month()
+                              selectedDate?.getDate() === day.day && selectedDate?.getMonth() === currentMonth.month() && selectedDate?.getYear() === currentMonth.year()
                                 ? "bg-blue-600 text-white shadow-lg" : 
                               day.isToday && day.available 
                                 ? "border-2 border-blue-400 text-blue-600 hover:bg-blue-50" : 
@@ -559,7 +594,6 @@ const [email, setEmail] = useState(prefill?.email || "");
                     </div>
                   </div>
 
-                  {/* Time Slots */}
                   {selectedDate && (
                     <div className="pt-6 md:pt-0 md:border-l md:pl-10">
                       <h3 className="text-lg sm:text-xl font-semibold mb-5 text-gray-700">
@@ -581,7 +615,6 @@ const [email, setEmail] = useState(prefill?.email || "");
                 </div>
               )}
 
-              {/* Form */}
               {step === "form" && (
                 <div className="max-w-xl">
                   <button onClick={handleBackToCalendar} className="mb-8 p-2 rounded-full hover:bg-gray-100 transition">

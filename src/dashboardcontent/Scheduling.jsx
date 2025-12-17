@@ -188,7 +188,7 @@ export default function SchedulingPage() {
   const [websiteModalEvent, setWebsiteModalEvent] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [eventTypes, setEventTypes] = useState([]);
-  const [isCopied, setIsCopied] = useState(false);
+  const [copiedEventId, setCopiedEventId] = useState(null);
 
   const [events, setEvents] = useState([]);
   const [selectedEvents, setSelectedEvents] = useState(new Set());
@@ -200,16 +200,19 @@ export default function SchedulingPage() {
     try {
       const token = localStorage.getItem("token") || "";
       setToken(token);
-      const check = JSON.parse(localStorage.getItem('user'));
+      const check = JSON.parse(localStorage.getItem("user"));
 
-      console.log('get data user data', check.id)
-      const response = await fetch(`http://192.168.0.245:4000/event-types/findByUserid/${check.id}`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
+      console.log("get data user data", check.id);
+      const response = await fetch(
+        `http://192.168.0.245:4000/event-types/findByUserid/${check.id}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
       //  console.log('response',response)
       if (!response.ok) throw new Error("Failed to fetch events");
 
@@ -221,7 +224,6 @@ export default function SchedulingPage() {
 
       const eventData = data.result.event;
       setEvents(Array.isArray(eventData) ? eventData : [eventData]);
-
     } catch (err) {
       console.error(err);
       addToast("Failed to fetch events");
@@ -418,17 +420,18 @@ export default function SchedulingPage() {
     //   item.name?.toLowerCase().includes(searchTerm.toLowerCase())
     // );
 
-    const handleCopyLink = async () => {
+    const handleCopyLink = async (event) => {
       try {
         const eventId = event._id || event.id;
 
         const token =
           localStorage.getItem("token") || sessionStorage.getItem("token");
+
         const headers = token
           ? {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          }
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            }
           : { "Content-Type": "application/json" };
 
         const response = await fetch(
@@ -436,34 +439,30 @@ export default function SchedulingPage() {
           { headers }
         );
 
-        if (!response.ok) {
-          throw new Error(`API Error: ${response.status}`);
-        }
+        if (!response.ok) throw new Error("API Error");
 
         const data = await response.json();
         const shareUrl = data.result?.shareUrl;
 
-        if (!shareUrl) {
-          throw new Error("Share URL not found in response");
-        }
+        if (!shareUrl) throw new Error("No share URL");
 
         await navigator.clipboard.writeText(shareUrl);
         addToast("Booking link copied!");
 
-        setIsCopied(true);
-        setTimeout(() => setIsCopied(false), 2000);
+        setCopiedEventId(eventId);
+        setTimeout(() => setCopiedEventId(null), 2000);
       } catch (error) {
-        console.error("Failed to fetch/copy share link:", error);
-        const fallbackUrl = `${window.location.origin}/book/${event.slug || event._id
-          }`;
+        const fallbackUrl = `${window.location.origin}/book/${
+          event.slug || event._id
+        }`;
         await navigator.clipboard.writeText(fallbackUrl);
-        addToast("Link copied (using fallback)!");
+        addToast("Link copied (fallback)");
 
-        setIsCopied(true);
-        setTimeout(() => setIsCopied(false), 2000);
+        setCopiedEventId(event._id);
+        setTimeout(() => setCopiedEventId(null), 2000);
       }
     };
-
+   console.log("events list", events);
     return (
       <div
         className="group relative bg-white border border-gray-200 rounded-xl hover:shadow-lg transition-all duration-200"
@@ -500,8 +499,9 @@ export default function SchedulingPage() {
 
           <div className="flex items-center flex-wrap gap-3">
             <div
-              className={`hidden sm:flex items-center gap-2 transition-opacity ${hovered ? "opacity-100" : "opacity-0"
-                }`}
+              className={`hidden sm:flex items-center gap-2 transition-opacity ${
+                hovered ? "opacity-100" : "opacity-0"
+              }`}
             >
               <button
                 className="p-2.5 rounded-lg hover:bg-gray-100"
@@ -527,16 +527,15 @@ export default function SchedulingPage() {
             </div>
 
             <button
-              onClick={handleCopyLink}
-              className={
-                `flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition ` +
-                (isCopied
+              onClick={() => handleCopyLink(event)}
+              className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium transition ${
+                copiedEventId === event._id
                   ? "bg-green-500 text-white border border-green-500 hover:bg-green-600"
-                  : "border border-gray-300 text-gray-800 hover:bg-gray-50")
-              }
+                  : "border border-gray-300 text-gray-800 hover:bg-gray-50"
+              }`}
             >
               <Link className="w-4 h-4" />
-              {isCopied ? "Copied" : "Copy link"}
+              {copiedEventId === event._id ? "Copied" : "Copy link"}
             </button>
 
             <div className="relative">
@@ -556,7 +555,7 @@ export default function SchedulingPage() {
                   <div className="absolute right-0 top-12 w-60 bg-white rounded-xl shadow-xl border border-gray-200 z-50">
                     <div className="py-2 border-b">
                       <a
-                        href={`/book/${event.slug || event._id}`}
+                        href={`/book/${ event._id}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 text-sm text-gray-700"
@@ -634,8 +633,9 @@ export default function SchedulingPage() {
                           }}
                         />
                         <div
-                          className={`relative w-10 h-6 rounded-full peer ${event.isActive ? "bg-blue-600" : "bg-gray-200"
-                            } after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full`}
+                          className={`relative w-10 h-6 rounded-full peer ${
+                            event.isActive ? "bg-blue-600" : "bg-gray-200"
+                          } after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full`}
                         />
                       </label>
                     </div>
@@ -689,14 +689,15 @@ export default function SchedulingPage() {
       <div className="bg-gray-50 min-h-screen pb-20">
         <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="space-y-4">
-            
             {events
-              .filter((event) => event && event.title?.toLowerCase().includes(searchTerm.toLowerCase()))
+              .filter(
+                (event) =>
+                  event &&
+                  event.title?.toLowerCase().includes(searchTerm.toLowerCase())
+              )
               .map((event) => (
                 <EventCard key={event._id} event={event} />
               ))}
-
-
           </div>
         </div>
       </div>

@@ -5,7 +5,6 @@ import ScheduleSwitcherDropdown from "./createschedule";
 import CalendarGrid from "./calendarbutton";
 import ListView from "./listbutton";
 
-
 const timezones = [
   { value: "America/New_York", label: "Eastern Time - US & Canada" },
   { value: "America/Chicago", label: "Central Time - US & Canada" },
@@ -16,7 +15,6 @@ const timezones = [
   { value: "Asia/Tokyo", label: "Tokyo" },
   { value: "Australia/Sydney", label: "Sydney" },
 ];
-
 
 const EventTypeSelectionModal = ({ isOpen, onClose }) => {
   const [activeList, setActiveList] = useState([]);
@@ -33,10 +31,10 @@ const EventTypeSelectionModal = ({ isOpen, onClose }) => {
         setLoading(true);
         setError(null);
 
-        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+        const token = localStorage.getItem("token") || sessionStorage.getItem("token");
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        
-        const res = await fetch("http://192.168.0.245:5000/event-types", { headers });
+
+        const res = await fetch("http://192.168.0.245:4000/event-types", { headers });
 
         if (!res.ok) {
           if (res.status === 401) {
@@ -47,31 +45,28 @@ const EventTypeSelectionModal = ({ isOpen, onClose }) => {
         }
 
         const data = await res.json();
-        console.log("event-types response:", data);
 
-        // ✅ MAP YOUR REAL API DATA CORRECTLY
         const allEvents = Array.isArray(data) ? data : [];
-        const active = allEvents.filter(item => item.isActive === true);
-        const inactive = allEvents.filter(item => item.isActive !== true);
+        const active = allEvents.filter((item) => item.isActive === true);
+        const inactive = allEvents.filter((item) => item.isActive !== true);
 
-        // ✅ TRANSFORM DATA TO MATCH UI EXPECTATIONS
-        const activeFormatted = active.map(item => ({
+        const activeFormatted = active.map((item) => ({
           id: item._id,
           name: item.title,
           duration: `${item.duration} min`,
-          callType: item.locationValue || item.location
+          callType: item.locationValue || item.location,
         }));
 
-        const inactiveFormatted = inactive.map(item => ({
+        const inactiveFormatted = inactive.map((item) => ({
           id: item._id,
           name: item.title,
           duration: `${item.duration} min`,
-          callType: item.locationValue || item.location
+          callType: item.locationValue || item.location,
         }));
 
         setActiveList(activeFormatted);
         setInactiveList(inactiveFormatted);
-        setSelected(activeFormatted.map(item => item.id));
+        setSelected(activeFormatted.map((item) => item.id));
       } catch (err) {
         console.error(err);
         setError("Failed to load event types");
@@ -84,8 +79,8 @@ const EventTypeSelectionModal = ({ isOpen, onClose }) => {
   }, [isOpen]);
 
   const toggleSelect = (id) => {
-    setSelected(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    setSelected((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
   };
 
@@ -104,7 +99,11 @@ const EventTypeSelectionModal = ({ isOpen, onClose }) => {
         {/* Header */}
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold">Apply to event types</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700"
+            aria-label="Close modal"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -123,20 +122,25 @@ const EventTypeSelectionModal = ({ isOpen, onClose }) => {
         {loading && (
           <p className="text-sm text-gray-500 mb-4">Loading event types...</p>
         )}
-        {error && (
-          <p className="text-sm text-red-500 mb-4">{error}</p>
-        )}
+        {error && <p className="text-sm text-red-500 mb-4">{error}</p>}
 
         {/* List Area */}
-        <div className="max-h-96 overflow-y-auto pr-2 space-y-4">
+        <div className="max-h-96 overflow-y-auto pr-2 space-y-6">
           {/* Active */}
           <div>
-            <p className="font-semibold text-gray-700 mb-2">Using this schedule</p>
+            <p className="font-semibold text-gray-700 mb-2">
+              Using this schedule
+            </p>
             {activeList.length === 0 && !loading && !error && (
-              <p className="text-xs text-gray-500 py-2">No active event types.</p>
+              <p className="text-xs text-gray-500 py-2">
+                No active event types.
+              </p>
             )}
             {activeList.map((item) => (
-              <div key={item.id} className="flex items-start justify-between py-2 border-b last:border-0">
+              <div
+                key={item.id}
+                className="flex items-start justify-between py-2 border-b border-gray-200 last:border-0"
+              >
                 <label className="flex items-start gap-3 cursor-pointer w-full">
                   <input
                     type="checkbox"
@@ -159,12 +163,19 @@ const EventTypeSelectionModal = ({ isOpen, onClose }) => {
 
           {/* Inactive */}
           <div>
-            <p className="font-semibold text-gray-700 mb-2">Not using this schedule</p>
+            <p className="font-semibold text-gray-700 mb-2">
+              Not using this schedule
+            </p>
             {inactiveList.length === 0 && !loading && !error && (
-              <p className="text-xs text-gray-500 py-2">No inactive event types.</p>
+              <p className="text-xs text-gray-500 py-2">
+                No inactive event types.
+              </p>
             )}
             {inactiveList.map((item) => (
-              <div key={item.id} className="flex items-start justify-between py-2 border-b last:border-0">
+              <div
+                key={item.id}
+                className="flex items-start justify-between py-2 border-b border-gray-200 last:border-0"
+              >
                 <label className="flex items-start gap-3 cursor-pointer w-full">
                   <input
                     type="checkbox"
@@ -219,7 +230,9 @@ const CalendarView = ({
 }) => {
   const [showListView, setShowListView] = useState(false);
   const [currentScheduleId, setCurrentScheduleId] = useState(initialScheduleId);
-  const [currentScheduleName, setCurrentScheduleName] = useState(initialScheduleName);
+  const [currentScheduleName, setCurrentScheduleName] = useState(
+    initialScheduleName
+  );
   const [timezone, setTimezone] = useState("America/New_York");
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [showEventTypeModal, setShowEventTypeModal] = useState(false);
@@ -230,7 +243,7 @@ const CalendarView = ({
     onScheduleChange?.(id, name);
   };
 
-  // Reusable Header
+  // Reusable Header with "Active on" link in both modes
   const ViewHeader = () => (
     <div className="bg-white border-b border-gray-200 px-4 py-4 sm:px-6 lg:px-8">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -258,6 +271,7 @@ const CalendarView = ({
                   : "text-gray-600 hover:bg-gray-100"
                 }
               `}
+              aria-label="List view"
             >
               <List className="w-4 h-4" />
               <span className="hidden sm:inline">List</span>
@@ -272,6 +286,7 @@ const CalendarView = ({
                   : "text-gray-600 hover:bg-gray-100"
                 }
               `}
+              aria-label="Calendar view"
             >
               <Calendar className="w-4 h-4" />
               <span className="hidden sm:inline">Calendar</span>
@@ -280,35 +295,45 @@ const CalendarView = ({
         </div>
       </div>
 
-      {!modalMode && (
-        <div className="mt-3 text-sm text-gray-600">
-          Active on:{" "}
-          <span 
-            onClick={() => setShowEventTypeModal(true)}
-            className="text-blue-600 font-medium underline hover:text-blue-700 cursor-pointer transition"
-          >
-            1 event type
-          </span>
-        </div>
-      )}
+      {/* Active on event types – shown in BOTH modes */}
+      <div className="mt-3 text-sm text-gray-600">
+        Active on:{" "}
+        <button
+          type="button"
+          onClick={() => setShowEventTypeModal(true)}
+          className="text-blue-600 font-medium underline hover:text-blue-700 cursor-pointer transition focus:outline-none focus:underline"
+        >
+           event type
+        </button>
+      </div>
     </div>
   );
 
   /* ——————————————————————— MODAL MODE ——————————————————————— */
   if (modalMode) {
     return (
-      <div className="fixed inset-0 z-[9999] bg-black/30 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-[9999] bg-white/30  flex items-center justify-center p-4">
         <div className="bg-white w-full max-w-5xl max-h-[92vh] rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden">
           {/* Sticky Header */}
           <div className="sticky top-0 z-20 bg-white border-b border-gray-200">
             <div className="relative">
               <button
                 onClick={onClose}
-                className="absolute right-4 top-4 z-10 p-2 rounded-lg hover:bg-gray-100 rounded-lg transition active:scale-95"
-                aria-label="Close"
+                className="absolute right-4 top-4 z-10 p-2 rounded-lg hover:bg-gray-100 transition active:scale-95"
+                aria-label="Close modal"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
               <ViewHeader />
@@ -356,6 +381,12 @@ const CalendarView = ({
             </button>
           </div>
         </div>
+
+        {/* Event Type Modal */}
+        <EventTypeSelectionModal
+          isOpen={showEventTypeModal}
+          onClose={() => setShowEventTypeModal(false)}
+        />
       </div>
     );
   }
@@ -397,7 +428,8 @@ const CalendarView = ({
         </div>
       )}
 
-      <EventTypeSelectionModal 
+      {/* Event Type Modal */}
+      <EventTypeSelectionModal
         isOpen={showEventTypeModal}
         onClose={() => setShowEventTypeModal(false)}
       />

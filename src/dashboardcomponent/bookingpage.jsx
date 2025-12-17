@@ -1,10 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, isBefore, startOfDay, addMinutes } from 'date-fns';
 import { ChevronLeft, ChevronRight, Clock, Phone, Calendar, Globe, Plus, Search, X, Video, Edit, Check, Link, Users, ChevronDown } from 'lucide-react';
 import PhoneInput, { isValidPhoneNumber } from 'react-phone-number-input';
 import 'react-phone-number-input/style.css';
-import { useAuth } from './src/context/authContext';  // Adjust path if your file is elsewhere
 
 // --- MOCK DATA ---
 const EVENT_DURATIONS = [15, 30, 60];
@@ -47,16 +45,16 @@ const generateCalendar = (date) => {
     const start = startOfMonth(date);
     const end = endOfMonth(date);
     const today = startOfDay(new Date(2025, 11, 10));
-
+    
     const days = eachDayOfInterval({ start, end });
-
+    
     const unavailableDates = days.filter(day => {
         const dayOfWeek = day.getDay();
         const dateNum = day.getDate();
         const isPast = isBefore(day, today) && !isSameDay(day, today);
         const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
         const isSpecificUnavailable = [6, 13, 20, 27].includes(dateNum);
-
+        
         return isPast || isWeekend || isSpecificUnavailable;
     });
 
@@ -322,7 +320,6 @@ export default function BookingPage() {
     const [showIntegrationModal, setShowIntegrationModal] = useState(false);
     const [showHostPhoneModal, setShowHostPhoneModal] = useState(false);
     const [showAddContactModal, setShowAddContactModal] = useState(false);
-    const { user , loading } = useAuth();
     const [showAnswerQuestionsModal, setShowAnswerQuestionsModal] = useState(false);
     const [showTimezoneModal, setShowTimezoneModal] = useState(false);
     const [timezoneSearch, setTimezoneSearch] = useState('');
@@ -350,147 +347,141 @@ export default function BookingPage() {
         }
     };
 
-    const handleCallDirectionChange = (direction) => {
-        setCallDirection(direction);
-        if (direction === 'invitee_calls') {
-            setShowHostPhoneModal(true);
-        }
-    };
-
+   const handleCallDirectionChange = (direction) => {
+    setCallDirection(direction);
+    // No modal opening anymore — everything is inline now
+};
     const handleEditName = () => setIsEditingName(true);
     const handleSaveName = () => {
         setIsEditingName(false);
         setMeetingName(meetingName.trim() || 'New Meeting');
     };
 
-    // === FIXED BOOKING API CALL ===
+const handleBookMeeting = async () => {
+    if (!selectedTime) {
+        alert('Please select a time.');
+        return;
+    }
+    if (connectionMethod === 'phone' && callDirection === 'host_calls' && (!phoneNumber || phoneError)) {
+        alert('Please enter a valid invitee phone number.');
+        return;
+    }
+    if (connectionMethod === 'phone' && !callDirection) {
+        alert('Please select who calls whom.');
+        return;
+    }
 
-    const handleBookMeeting = async () => {
-        if (!selectedTime) {
-            alert('Please select a time.');
-            return;
-        }
-        if (connectionMethod === 'phone' && callDirection === 'host_calls' && (!phoneNumber || phoneError)) {
-            alert('Please enter a valid invitee phone number.');
-            return;
-        }
-        if (connectionMethod === 'phone' && !callDirection) {
-            alert('Please select who calls whom.');
-            return;
-        }
+    // selectedDate as "2025-12-12"
+    const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
 
-        const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
+    // selectedTime as ORIGINAL "9:30 AM" (with space and AM/PM) ← THIS FIXES THE FORMAT ERROR
+    // const selectedTimeStr = selectedTime;
+    // let selectedTime = 1;
+    
+const formatTime = (time) => {
+  // Example input: "2", "02", "2 PM", "14", "2:00 PM"
+  let hour = parseInt(time);
 
-        const formatTimeForAPI = (time) => {
-            const [hourMinute, period] = time.split(' ');
-            const [hourStr] = hourMinute.split(':');
-            let hour = parseInt(hourStr);
-            if (hour === 12) hour = period === 'AM' ? 12 : 0;
-            hour = hour === 0 ? 12 : hour;
-            const formattedHour = String(hour).padStart(2, '0');
-            return `${formattedHour}:00 ${period}`;
-        };
+  // Convert 24h → 12h format
+  const suffix = hour >= 12 ? "AM" : "PM";
+  hour = hour % 12 || 12;
 
-        const selectedTimeStr = formatTimeForAPI(selectedTime);
+  // Always two digits
+  const hourStr = String(hour).padStart(2, "0");
 
-        const callTypeMap = {
-            phone: 'phone_call',
-            google_meet: 'google_meet',
-            zoom: 'zoom',
-            teams: 'teams',
-        };
+  return `${hourStr}:00 ${suffix}`;
+};
 
-        // === SAFE HARDCODED VALUES (replace later with auth) ===
-        const userEmail = user.email;
-        // const hostName = "Shubham"; // Change when adding real user data
-        const hostName = user.name || user.fullName || user.username || "Host";
-        const hosts = [
+// Usage:
+const selectedTimeStr = formatTime(selectedTime);
+console.log(selectedTimeStr);
+
+    // Map callType correctly
+    const callTypeMap = {
+        phone: 'phone_call',
+        google_meet: 'google_meet',
+        zoom: 'zoom',
+        teams: 'in_person'
+    };
+
+    const payload = {
+        selectedDate: selectedDateStr,
+        selectedTime: selectedTimeStr,  // ← FIXED: "9:30 AM" instead of "09:30"
+        meetingTitle: meetingName.trim() || "New Meeting",
+        callType: callTypeMap[connectionMethod],
+        whoCallsWho: callDirection === 'host_calls' 
+            ? 'host_calls_invitee' 
+            : 'invitee_calls_host',
+        hosts: [
             {
                 id: "host1",
-                name: hostName,
-                timeZone: selectedTimezone.value,
-            },
-        ];
-
-        const contactsPayload = contacts.length > 0
-            ? contacts.map((c, i) => ({
-                id: `contact${i + 1}`,
-                name: c.name,
-                email: c.email || "guest@example.com",
-                phone: c.phone || "",
-            }))
-            : [
-                {
-                    id: "contact1",
-                    name: "Guest",
-                    email: "guest@example.com",
-                    phone: "",
-                },
-            ];
-
-        const contactQuestionsPayload = notesMessage
-            ? [{
+                name: "Samunder",
+                timeZone: selectedTimezone.value
+            }
+        ],
+        contacts: contacts.length > 0 ? contacts.map((c, i) => ({
+            id: `contact${i + 1}`,
+            name: c.name,
+            email: c.email || "guest@example.com",
+            phone: c.phone || ""
+        })) : [
+            {
+                id: "contact1",
+                name: "Guest",
+                email: "guest@example.com",
+                phone: ""
+            }
+        ],
+        contactQuestions: notesMessage ? [
+            {
                 question: "Please share anything that will help prepare for our meeting.",
                 answer: notesMessage
-            }]
-            : [];
-
-        const payload = {
-            userEmail,
-            meetingTitle: meetingName.trim() || "New Meeting",
-            duration: selectedDuration,
-            callType: callTypeMap[connectionMethod],
-            selectedDate: selectedDateStr,
-            selectedTime: selectedTimeStr,
-            hosts,
-            contacts: contactsPayload,
-            contactQuestions: contactQuestionsPayload,
-        };
-
-        // ... rest remains the same
-        if (connectionMethod === 'phone') {
-            if (callDirection === 'host_calls') {
-                payload.whoCallsWho = "host_calls_invitee";
-                payload.inviteePhoneNumber = phoneNumber;
-            } else if (callDirection === 'invitee_calls') {
-                payload.whoCallsWho = "invitee_calls_host";
-                payload.hostPhoneNumber = hostPhoneNumber;
             }
-        }
-
-        console.log("Booking Payload →", JSON.stringify(payload, null, 2));
-
-        try {
-            const response = await fetch('http://192.168.0.245:4000/meetings/book', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    // Uncomment if auth is required
-                    // Authorization: `Bearer ${localStorage.getItem('token')}`,
-                },
-                body: JSON.stringify(payload),
-            });
-
-            const result = await response.json();
-
-            if (!response.ok) {
-                const errorMsg = typeof result.message === 'string'
-                    ? result.message
-                    : Array.isArray(result.message)
-                        ? result.message.join(', ')
-                        : 'Failed to book meeting';
-                alert(`Error: ${errorMsg}`);
-                console.error("API Error:", result);
-                return;
-            }
-
-            alert('Meeting booked successfully!');
-            console.log("Success:", result);
-        } catch (err) {
-            console.error("Network Error:", err);
-            alert('Failed to connect to server. Is backend running?');
-        }
+        ] : []
     };
+
+    // Add phone number if needed
+    if (connectionMethod === 'phone') {
+        if (callDirection === 'host_calls') {
+            payload.inviteePhoneNumber = phoneNumber;
+        } else if (callDirection === 'invitee_calls') {
+            payload.hostPhoneNumber = hostPhoneNumber;
+        }
+    }
+
+    console.log("Final Payload →", payload);
+
+    try {
+        const response = await fetch('http://192.168.0.245:4000/meetings/book', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            // ← FIXED: Handle message as string OR array
+            const errorMsg = typeof result.message === 'string' 
+                ? result.message 
+                : Array.isArray(result.message) 
+                    ? result.message.join(', ') 
+                    : 'Failed to book meeting';
+            alert(`Error: ${errorMsg}`);
+            console.error("API Error:", result);
+            return;
+        }
+
+        alert('Meeting booked successfully!');
+        console.log("Success:", result);
+
+    } catch (err) {
+        console.error("Network Error:", err);
+        alert('Failed to connect to server. Is backend running?');
+    }
+};
 
     const TimezoneModal = () => (
         <div className={`fixed inset-0 bg-white/50 z-30 flex items-center justify-center p-4 ${showTimezoneModal ? '' : 'hidden'}`} onClick={() => setShowTimezoneModal(false)}>
@@ -537,8 +528,8 @@ export default function BookingPage() {
         </div>
     );
 
-    const filteredContacts = contacts.filter(c =>
-        c.name.toLowerCase().includes(contactSearch.toLowerCase()) ||
+    const filteredContacts = contacts.filter(c => 
+        c.name.toLowerCase().includes(contactSearch.toLowerCase()) || 
         c.email.toLowerCase().includes(contactSearch.toLowerCase())
     );
 
@@ -610,21 +601,71 @@ export default function BookingPage() {
                             </div>
 
                             {/* Call Direction */}
-                            {connectionMethod === 'phone' && (
-                                <div className="mb-6">
-                                    <p className="text-sm font-medium text-gray-700 mb-3">Who's calling who?</p>
-                                    <div className="space-y-3">
-                                        <label className="flex items-center gap-3 cursor-pointer">
-                                            <input type="radio" name="callDirection" checked={callDirection === 'host_calls'} onChange={() => handleCallDirectionChange('host_calls')} className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500" />
-                                            <span className="text-sm text-gray-700">The host will call the invitee</span>
-                                        </label>
-                                        <label className="flex items-center gap-3 cursor-pointer">
-                                            <input type="radio" name="callDirection" checked={callDirection === 'invitee_calls'} onChange={() => handleCallDirectionChange('invitee_calls')} className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500" />
-                                            <span className="text-sm text-gray-700">The invitee will call the host</span>
-                                        </label>
-                                    </div>
-                                </div>
-                            )}
+                            {/* Call Direction */}
+{connectionMethod === 'phone' && (
+    <div className="mb-6">
+        <p className="text-sm font-medium text-gray-700 mb-3">Who's calling who?</p>
+        <div className="space-y-3">
+            <label className="flex items-center gap-3 cursor-pointer">
+                <input 
+                    type="radio" 
+                    name="callDirection" 
+                    checked={callDirection === 'host_calls'} 
+                    onChange={() => setCallDirection('host_calls')} 
+                    className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500" 
+                />
+                <span className="text-sm text-gray-700">The host will call the invitee</span>
+            </label>
+
+            <label className="flex items-center gap-3 cursor-pointer">
+                <input 
+                    type="radio" 
+                    name="callDirection" 
+                    checked={callDirection === 'invitee_calls'} 
+                    onChange={() => setCallDirection('invitee_calls')} 
+                    className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500" 
+                />
+                <span className="text-sm text-gray-700">The invitee will call the host</span>
+            </label>
+        </div>
+
+        {/* Inline Host Phone Number (appears when invitee calls host) */}
+        {callDirection === 'invitee_calls' && (
+            <div className="mt-5 space-y-4 animate-fadeIn">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Host’s phone number <span className="text-red-500">*</span>
+                    </label>
+                    <PhoneInput
+                        international
+                        defaultCountry="US"
+                        value={hostPhoneNumber}
+                        onChange={setHostPhoneNumber}
+                        placeholder="Enter host phone number"
+                        className="phone-input-custom"
+                    />
+                    <p className="text-xs text-gray-500 mt-2">
+                        This is the number the invitee will call
+                    </p>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        Additional information <span className="text-gray-500">(Optional)</span>
+                    </label>
+                    <textarea
+                        value={callDetails}
+                        onChange={(e) => setCallDetails(e.target.value)}
+                        placeholder="Extension number, conference bridge, or other call details"
+                        rows={3}
+                        maxLength={1000}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                </div>
+            </div>
+        )}
+    </div>
+)}
 
                             {/* Invitee Phone Number */}
                             {connectionMethod === 'phone' && callDirection === 'host_calls' && (
@@ -698,10 +739,11 @@ export default function BookingPage() {
                             <button
                                 onClick={handleBookMeeting}
                                 disabled={!selectedTime || (connectionMethod === 'phone' && callDirection === 'host_calls' && (!phoneNumber || phoneError))}
-                                className={`w-full py-3 rounded-md font-semibold text-base transition-all ${selectedTime && !(connectionMethod === 'phone' && callDirection === 'host_calls' && (!phoneNumber || phoneError))
-                                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                                    : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                                    }`}
+                                className={`w-full py-3 rounded-md font-semibold text-base transition-all ${
+                                    selectedTime && !(connectionMethod === 'phone' && callDirection === 'host_calls' && (!phoneNumber || phoneError))
+                                        ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                                        : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                }`}
                             >
                                 Book meeting
                             </button>
@@ -746,12 +788,13 @@ export default function BookingPage() {
                                             key={day.date.toISOString()}
                                             onClick={() => day.available && setSelectedDate(day.date)}
                                             disabled={!day.available}
-                                            className={`aspect-square rounded-md font-medium transition-all text-sm flex items-center justify-center ${!day.isCurrentMonth ? 'text-gray-300' :
+                                            className={`aspect-square rounded-md font-medium transition-all text-sm flex items-center justify-center ${
+                                                !day.isCurrentMonth ? 'text-gray-300' :
                                                 !day.available ? 'text-gray-400 cursor-not-allowed' :
-                                                    isSameDay(day.date, selectedDate) ? 'bg-blue-600 text-white font-bold' :
-                                                        day.isToday ? 'text-blue-600 font-semibold' :
-                                                            'text-gray-900 hover:bg-gray-100'
-                                                }`}
+                                                isSameDay(day.date, selectedDate) ? 'bg-blue-600 text-white font-bold' :
+                                                day.isToday ? 'text-blue-600 font-semibold' :
+                                                'text-gray-900 hover:bg-gray-100'
+                                            }`}
                                         >
                                             {day.day}
                                         </button>
@@ -771,10 +814,11 @@ export default function BookingPage() {
                                             <button
                                                 key={time}
                                                 onClick={() => setSelectedTime(time)}
-                                                className={`py-2.5 px-3 rounded-md font-medium border transition-all text-sm ${selectedTime === time
-                                                    ? 'bg-blue-600 text-white border-blue-600'
-                                                    : 'bg-white border-gray-300 text-blue-600 hover:border-blue-500 hover:bg-blue-50'
-                                                    }`}
+                                                className={`py-2.5 px-3 rounded-md font-medium border transition-all text-sm ${
+                                                    selectedTime === time
+                                                        ? 'bg-blue-600 text-white border-blue-600'
+                                                        : 'bg-white border-gray-300 text-blue-600 hover:border-blue-500 hover:bg-blue-50'
+                                                }`}
                                             >
                                                 {time}
                                             </button>
@@ -796,14 +840,14 @@ export default function BookingPage() {
             <TimezoneModal />
             <IntegrationConnectionModal isOpen={showIntegrationModal} onClose={() => setShowIntegrationModal(false)} method={connectionMethod} />
             <HostPhoneDetailsModal isOpen={showHostPhoneModal} onClose={() => setShowHostPhoneModal(false)} hostPhone={hostPhoneNumber} setHostPhone={setHostPhoneNumber} additionalDetails={callDetails} setAdditionalDetails={setCallDetails} />
-            <AddContactModal isOpen={showAddContactModal} onClose={() => setShowAddContactModal(false)} onSave={(c) => setContacts([...contacts, { id: `contact${contacts.length + 1}`, ...c }])} />
-            <AnswerQuestionsModal
-                isOpen={showAnswerQuestionsModal}
-                onClose={() => setShowAnswerQuestionsModal(false)}
+            <AddContactModal isOpen={showAddContactModal} onClose={() => setShowAddContactModal(false)} onSave={(c) => setContacts([...contacts, {id: `contact${contacts.length + 1}`, ...c}])} />
+            <AnswerQuestionsModal 
+                isOpen={showAnswerQuestionsModal} 
+                onClose={() => setShowAnswerQuestionsModal(false)} 
                 onSave={(message) => setNotesMessage(message)}
             />
 
-            {/* <style jsx global>{`
+            <style jsx global>{`
                 .phone-input-custom, .phone-input-host { width: 100%; }
                 .phone-input-custom input, .phone-input-host input {
                     width: 100%;
@@ -822,27 +866,7 @@ export default function BookingPage() {
                     to { opacity: 1; transform: scale(1); }
                 }
                 .animate-fadeIn { animation: fadeIn 0.2s ease-out; }
-            `}</style> */}
-            <style jsx={'true'} global={'true'}>{`
-  .phone-input-custom, .phone-input-host { width: 100%; }
-  .phone-input-custom input, .phone-input-host input {
-    width: 100%;
-    padding: 0.75rem;
-    border: 1px solid #d1d5db;
-    border-radius: 0.375rem;
-    font-size: 0.875rem;
-  }
-  .phone-input-custom input:focus, .phone-input-host input:focus {
-    outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-  }
-  @keyframes fadeIn {
-    from { opacity: 0; transform: scale(0.95); }
-    to { opacity: 1; transform: scale(1); }
-  }
-  .animate-fadeIn { animation: fadeIn 0.2s ease-out; }
-`}</style>
+            `}</style>
         </>
     );
 }

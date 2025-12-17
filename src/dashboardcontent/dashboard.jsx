@@ -85,7 +85,7 @@
 //       {/* Main Layout */}
 //       <div className="flex-1 flex flex-col">
 //         <Header />
-//         <main className="flex-1 overflow-y-auto bg-black ">
+//         <main className="flex-1 overflow-y-auto bg-white ">
 //           <div className="">
 //             {renderContent()}
 //           </div>
@@ -116,6 +116,7 @@ import Header from "./header";
 import CreateForm from "../dashboardcomponent/createform";
 import eventBus from "../lib/eventBus"; 
 import { useNavigate } from "react-router-dom";
+import API_URL from "../config/config";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -141,7 +142,7 @@ export default function Dashboard() {
     const token = localStorage.getItem("token");
     if (!token) return;
 
-    fetch("http://localhost:4000/event-types", { // <-- Replace 5000 with your API Gateway port
+    fetch(`${API_URL.BASE_URL}/event-types`, { // <-- Replace 5000 with your API Gateway port
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
@@ -203,7 +204,7 @@ export default function Dashboard() {
       <Sidebar setActiveContent={setActiveContent} />
       <div className="flex-1 flex flex-col">
         <Header />
-        <main className="flex-1 overflow-y-auto bg-black ">
+        <main className="flex-1 overflow-y-auto bg-white ">
           <div>{renderContent()}</div>
         </main>
       </div>

@@ -34,6 +34,7 @@ import Success from './component/layout/success.jsx';
         <Route path="/login" element={<Login/>} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
        <Route path="/join-event/:eventId" element={<PublicBooking />} />
+       <Route path="/book/:eventId" element={<PublicBooking />} />
     
         <Route path="/signup" element={<SignUp />} />
       {/* dashboard */}

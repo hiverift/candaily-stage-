@@ -11,7 +11,7 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
-
+import API_URL from "../../config/config";
 export default function SignUp() {
   const navigate = useNavigate();
   const [error, setError] = useState("");
@@ -41,7 +41,7 @@ export default function SignUp() {
         setError("Full name is required");
         setLoading(null);
         return;
-      }
+      }   
       if (!formData.email.trim()) {
         setError("Email is required");
         setLoading(null);
@@ -60,7 +60,7 @@ export default function SignUp() {
 
       try {
         const response = await fetch(
-          "http://192.168.0.245:5000/auth/register",
+          `${API_URL.BASE_URL}/auth/register`,
           {
             method: "POST",
             headers: {

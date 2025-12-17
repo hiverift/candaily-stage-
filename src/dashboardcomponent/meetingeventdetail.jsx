@@ -2,9 +2,9 @@
 import React, { useState, useMemo } from "react";
 import { toast, Toaster } from "react-hot-toast";
 import { X } from "lucide-react";
-import eventBus from "../lib/eventBus";
+import eventBus from "../lib/eventBus"; // Make sure this file exists
 
-// === ALL SVG ICONS ===
+// === SVG ICONS ===
 const RescheduleIcon = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M13.3333 8C13.3333 11.3137 10.3137 14.3333 7 14.3333C3.68629 14.3333 0.666667 11.3137 0.666667 8C0.666667 4.68629 3.68629 1.66667 7 1.66667C10.3137 1.66667 13.3333 4.68629 13.3333 8ZM13.3333 8L10 11.3333M13.3333 8L10 4.66667" stroke="#4A4A4A" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round" />
@@ -52,7 +52,7 @@ const MOCK_EVENT_DATA = {
   ],
   host: { avatarInitial: "S" },
   created: "1 December 2025",
-  date: "2025-12-01",
+  date: "2025-12-16", // Today or future date
 };
 
 // === Reusable Components ===
@@ -83,17 +83,14 @@ const DataSection = ({ label, children }) => (
   </div>
 );
 
-export default function EventDetails({
-  event = MOCK_EVENT_DATA,
-  onBookMeeting
-}) {
-
+export default function EventDetails({ event = MOCK_EVENT_DATA }) {
   const [isDeleted, setIsDeleted] = useState(false);
   const [isEditingEmail, setIsEditingEmail] = useState(false);
   const [email, setEmail] = useState(event.invitee.email);
   const [isAddingNotes, setIsAddingNotes] = useState(false);
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes] = useState("");
 
+  // Check if event is in the past
   const isPast = useMemo(() => {
     if (!event.date) return false;
     const eventDate = new Date(event.date);
@@ -104,17 +101,18 @@ export default function EventDetails({
   }, [event.date]);
 
   const handleEditEmail = () => {
-    if (isEditingEmail) toast.success("Email updated!");
+    if (isEditingEmail) {
+      toast.success("Email updated!");
+    }
     setIsEditingEmail(!isEditingEmail);
   };
 
-  // Instant Delete
   const handleDelete = () => {
-    toast.success("Event permanently deleted!", { duration: 4000 });
+    toast.success("Event permanently deleted!");
     setIsDeleted(true);
   };
 
-  // RESCHEDULE → New Tab + reschedule mode
+  // === RESCHEDULE → New Tab + Reschedule Mode ===
   const openReschedule = () => {
     const params = new URLSearchParams({
       reschedule: "true",
@@ -124,13 +122,31 @@ export default function EventDetails({
     window.open(`/book/1?${params.toString()}`, "_blank", "noopener,noreferrer");
   };
 
-  // SCHEDULE AGAIN → New Tab + normal booking
+  // === SCHEDULE AGAIN → New Tab + Normal Booking ===
   const openScheduleAgain = () => {
     const params = new URLSearchParams({
       name: event.invitee.name,
       email: event.invitee.email,
     });
     window.open(`/book/1?${params.toString()}`, "_blank", "noopener,noreferrer");
+  };
+
+  // === EDIT EVENT TYPE → Switch Tab + Open Modal ===
+  const handleEditEventType = () => {
+    eventBus.emit("switchToSchedulingTab");
+    setTimeout(() => {
+      eventBus.emit("openEditEventModal", {
+        id: 1,
+        title: "30 Minute Meeting",
+        duration: "30",
+        location: "Google Meet",
+        locationType: "google-meet",
+        eventType: "one-on-one",
+        maxBookings: 5,
+        questions: { phone: true, purpose: true },
+        status: "active",
+      });
+    }, 100);
   };
 
   // === DELETED SCREEN ===
@@ -150,53 +166,27 @@ export default function EventDetails({
 
   return (
     <>
-      {/* MAIN EVENT DETAILS PAGE */}
-      <div className="min-h-screen bg-white flex flex-col">
+      <div className="min-h-screen bg-gray-50 flex flex-col">
         <div className="flex-1 max-w-4xl w-full mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] divide-y lg:divide-y-0 lg:divide-x divide-gray-200 bg-white">
-
-            {/* LEFT PANEL - ACTIONS */}
+            {/* LEFT: Actions */}
             <div className="p-6 space-y-6">
               {!isPast && (
-                <div className="space-y-3">
-                  <PrimaryActionButton Icon={RescheduleIcon} label="Reschedule" onClick={openReschedule} />
-                  <PrimaryActionButton Icon={CancelIcon} label="Delete Event" onClick={handleDelete} />
-                </div>
-              )}
-
-              {!isPast && <hr className="border-gray-200" />}
-
-              {!isPast && (
-                <div className="space-y-4">
-                  <SecondaryActionLink
-                    Icon={EditEventTypeIcon}
-                    label="Edit Event Type"
-                    onClick={() => {
-                      // 1. Switch to Scheduling tab
-                      eventBus.emit("switchToSchedulingTab");
-
-                      // 2. Open edit modal with data (small delay so tab switches first)
-                      setTimeout(() => {
-                        eventBus.emit("openEditEventModal", {
-                          id: 1,
-                          title: "30 Minute Meeting",
-                          duration: "30",
-                          location: "Google Meet",
-                          locationType: "google-meet",
-                          eventType: "one-on-one",
-                          maxBookings: 5,
-                          questions: { phone: true, purpose: true },
-                          status: "active",
-                        });
-                      }, 100);
-                    }}
-                  />
-                  <SecondaryActionLink Icon={ScheduleAgainIcon} label="Schedule Invitee Again" onClick={openScheduleAgain} />
-                </div>
+                <>
+                  <div className="space-y-3">
+                    <PrimaryActionButton Icon={RescheduleIcon} label="Reschedule" onClick={openReschedule} />
+                    <PrimaryActionButton Icon={CancelIcon} label="Delete Event" onClick={handleDelete} />
+                  </div>
+                  <hr className="border-gray-200" />
+                  <div className="space-y-4">
+                    <SecondaryActionLink Icon={EditEventTypeIcon} label="Edit Event Type" onClick={handleEditEventType} />
+                    <SecondaryActionLink Icon={ScheduleAgainIcon} label="Schedule Invitee Again" onClick={openScheduleAgain} />
+                  </div>
+                </>
               )}
             </div>
 
-            {/* RIGHT PANEL - EVENT INFO */}
+            {/* RIGHT: Details */}
             <div className="p-6 space-y-0">
               <DataSection label="INVITEE">
                 <div className="flex items-start gap-3">
@@ -260,6 +250,7 @@ export default function EventDetails({
                   Add meeting notes
                 </button>
                 <p className="text-xs text-gray-500 ml-6 mt-1">(only the host will see these)</p>
+
                 {isAddingNotes && (
                   <div className="mt-4">
                     <textarea
@@ -272,7 +263,7 @@ export default function EventDetails({
                       <button
                         onClick={() => {
                           setIsAddingNotes(false);
-                          setNotes('');
+                          setNotes("");
                         }}
                         className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors"
                       >
@@ -281,7 +272,7 @@ export default function EventDetails({
                       <button
                         onClick={() => {
                           setIsAddingNotes(false);
-                          toast.success("Meeting notes saved successfully!");
+                          toast.success("Meeting notes saved!");
                         }}
                         className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-full hover:bg-blue-700 transition-colors"
                       >
@@ -299,7 +290,6 @@ export default function EventDetails({
           </div>
         </div>
 
-        {/* Bottom Bar */}
         <div className="max-w-4xl w-full mx-auto border-t border-blue-100 bg-blue-50 text-center py-3 text-sm text-blue-600">
           You've reached the end of the list.
         </div>
@@ -308,10 +298,4 @@ export default function EventDetails({
       <Toaster position="top-center" />
     </>
   );
-  <PrimaryActionButton
-  Icon={ScheduleAgainIcon}
-  label="Book This Meeting"
-  onClick={() => onBookMeeting(event)}
-/>
-
 }
